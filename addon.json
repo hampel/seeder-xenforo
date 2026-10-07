@@ -1,0 +1,24 @@
+{
+    "legacy_addon_id": "",
+    "title": "Seeder",
+    "description": "Test data generator for development installs",
+    "version_id": 1000011,
+    "version_string": "1.0.0a1",
+    "dev": "Simon Hampel",
+    "dev_url": "https://xenforo.com/community/members/sim.4264/",
+    "faq_url": "",
+    "support_url": "",
+    "extra_urls": [],
+    "require": {
+        "php": [
+            "8.1.0",
+            "PHP 8.1+"
+        ],
+        "XF": [
+            "2030070",
+            "XenForo 2.3.0+"
+        ]
+    },
+    "icon": "fa-seedling",
+    "composer_autoload": "vendor/composer"
+}
