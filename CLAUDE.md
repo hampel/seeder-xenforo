@@ -59,6 +59,25 @@ off on every entity a factory saves, and take email addresses from Faker's `safe
   for p in l['packages']: print(p['name'], p.get('require',{}).get('php','-'))"
   ```
 
+## Tests that create content
+
+**They run against the real database inside a transaction, and three things end that transaction
+early** — after which every later write in the test is permanent:
+
+- **a job that runs and throws.** The job manager answers with `rollbackAll()`. A job run in a
+  test has only this add-on loaded, so it throws on the first entity another add-on extends. Fake
+  the queue with `fakesJobs()` in any test that creates or removes content.
+- **cleaning every batch.** Always name the batch.
+- anything else that calls `rollbackAll()` or `commit()`.
+
+The framework reports it (*This test's transaction did not survive*). Treat that message as
+"something was left in the database" and go and look.
+
+## Seeded runs stay reproducible only if nothing reseeds
+
+Faker reseeds `mt_rand()` at random when a generator is destroyed. `Context::faker()` collects
+garbage before seeding for that reason; do not create a second generator during a run.
+
 ## Commands and tests
 
 ```bash

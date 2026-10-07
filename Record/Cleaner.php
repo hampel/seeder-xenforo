@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Record;
 
+use Hampel\Seeder\Factory\AbstractFactory;
 use XF\Mvc\Entity\Entity;
 
 /**
@@ -23,6 +24,9 @@ class Cleaner
 		$db = \XF::db();
 		$below = PHP_INT_MAX;
 
+		$jobs = new JobDrain();
+		$jobs->start();
+
 		do
 		{
 			// by cursor rather than by offset: a record that fails stays in the table, and must
@@ -43,6 +47,8 @@ class Cleaner
 			}
 		}
 		while ($records);
+
+		$jobs->finish();
 
 		return $result;
 	}
@@ -82,6 +88,15 @@ class Cleaner
 	 */
 	protected function remove(Entity $entity, ?string $factory): void
 	{
+		// the factory that made it knows what it leaves behind; anything else is a plain delete
+		if ($factory !== null && is_subclass_of($factory, AbstractFactory::class))
+		{
+			$factory::remove($entity);
+
+			return;
+		}
+
+		AbstractFactory::silence($entity);
 		$entity->delete();
 	}
 }

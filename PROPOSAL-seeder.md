@@ -99,8 +99,9 @@ class DefaultSeeder extends AbstractSeeder
 
 - **`seeder:run` with no argument runs `DefaultSeeder`**, as `db:seed` runs `DatabaseSeeder`.
 - **Unlike Laravel, a seeder takes parameters** — `--param users=50`, read with `$this->param()`.
-  An agent needs to say "200 threads" without writing a class. `DefaultSeeder` also gets named
-  options for the common ones (`--users`, `--forums`, `--threads`, `--posts`).
+  An agent needs to say "200 threads" without writing a class. There are no per-seeder named
+  options: a command cannot know which seeder it will be given, so `-p name=value` is the one
+  form.
 - **Any add-on can ship its own seeders and factories.** `seeder:run Vendor/Addon:Name` resolves
   to `Vendor\Addon\Seed\NameSeeder`. The class extends ours but is only loaded when asked for, so
   the other add-on takes no hard dependency. XFRM and XFMG seeders live in this add-on, each
@@ -240,6 +241,11 @@ Then, in order:
    a seeded post in an existing thread, for instance.
 6. Delete the batch's records and report what was removed, table by table.
 
+**Run and clean both drain the jobs they queued before returning** (`Record\JobDrain`), then
+rebuild the board statistics cache. Removing a member queues a search re-index per member; left
+queued, the command looks finished while the forum is still changing, and a row-count comparison
+taken straight afterwards is wrong.
+
 **`run` refuses a batch name that already exists.** Batches default to a timestamped name;
 `seeder:list` shows each with its counts and date range.
 
@@ -279,10 +285,11 @@ Each phase ends with something that runs.
    `seeder:list`. `clean` against an empty table proves the plumbing.
 3. **Factory core with `UserFactory`.** `definition`, `state`, `count`, `sequence`, `make`,
    `create`, recording, the clock, Faker and `--seed`. First real round trip: create 20 users,
-   clean, compare.
-4. **Seeder discovery across add-ons**, and the JSON output contract. Early on purpose: the first
-   consumer should be an add-on with its own tables, because that is the case that tests whether
-   this is a usable harness. That factory is written in the other add-on, by its own session.
+   clean, compare. *Done 2026-10-08, along with `seeder:run`, the JSON output, `--span` and the
+   name-to-class resolution that phase 4 needed.*
+4. **A first consumer in another add-on.** The mechanism exists; what is untested is whether it
+   is a usable harness, and the case that tests it is an add-on with its own tables. That factory
+   is written in the other add-on, by its own session.
 5. **The no-trace test** (below), which every later phase must keep passing.
 6. **Forums, threads, posts and `Timeline`.** `has`, `for`, `recycle`. `DefaultSeeder` and
    `--span`.
@@ -324,9 +331,24 @@ seeded.
 - **Thread and forum last-post data with posts created out of date order.** `Thread::postAdded()`
   only advances `last_post_date` when the new post is later, which is right if posts are created
   oldest first. Factories will create in date order; a test should pin it.
-- **Speed.** No measurement yet. The estimate that a few thousand posts takes well under a minute
-  is a guess.
+- **Speed with content.** Members are measured: 500 created in 10 seconds and removed in 32, on
+  2026-10-08. Removal is the slow half, since each member runs XenForo's own clean-up service and
+  a search job. Threads and posts are not measured yet.
 - **Faker's `replace` entries on XenForo 2.2**, whose bundled versions were not read.
+
+## Found while building
+
+- **A Faker generator reseeds `mt_rand()` at random from its destructor**, and holds a reference
+  cycle with its providers, so a discarded one is destroyed whenever the collector next runs. In a
+  process that has made more than one generator, that lands part-way through a seeded run and
+  ends its reproducibility. `Context::faker()` collects cycles before it seeds.
+- **A forum's own rules decide what a member may be called.** The development install caps names
+  at 25 characters where XenForo's default is 50. The member factory asks the entity whether a
+  name is acceptable instead of copying the rules.
+- **A job run inside a test runs with only this add-on loaded**, throws on the first entity
+  another add-on extends, and the job manager answers a throw with `rollbackAll()` — which ends
+  the test's transaction and makes its later writes permanent. Tests that create content fake the
+  job queue.
 
 ## How this was surveyed
 

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
  */
 class FrameworkHalfTest extends TestCase
 {
-	private const FRAMEWORK = ['Recorder.php', 'NullRecorder.php', 'Timeline.php', 'Seed', 'Factory', 'Faker'];
+	private const FRAMEWORK = ['Recorder.php', 'NullRecorder.php', 'CollectingRecorder.php', 'Context.php', 'Clock.php', 'Timeline.php', 'Seed', 'Factory', 'Faker'];
 
 	private const FORBIDDEN = '/\b(Guard|Hampel\\\\Seeder\\\\(Config|Record|Entity|Repository|Cli)\b|XF::config\()/';
 
