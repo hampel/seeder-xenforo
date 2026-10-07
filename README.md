@@ -5,7 +5,8 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
-**Early development.** The commands below exist; nothing creates content yet.
+**Early development.** The commands below exist, and content that is recorded can be removed
+again; nothing creates content yet.
 
 ## Requirements
 
@@ -37,7 +38,19 @@ Everything is set in `src/config.php`, under `$config['hampelSeeder']`.
 ```bash
 php cmd.php seeder:config       # whether seeding is allowed, and the settings in use
 php cmd.php seeder:validate     # whether this forum can be seeded, and whether that is safe
+php cmd.php seeder:list         # the batches of seeded content on this forum
+php cmd.php seeder:clean [batch]   # remove one batch, or every batch
 ```
+
+`seeder:list` and `seeder:clean` take `--json`.
+
+### Removing seeded content
+
+**`seeder:clean` deletes only what was recorded when the content was created.** It asks first;
+`--force` skips the question, and without a terminal to answer the question nothing is deleted.
+
+It exits 0 when everything recorded is gone and 1 if anything could not be removed. Whatever
+could not be removed stays recorded, so the command can be run again.
 
 ### Exit codes
 

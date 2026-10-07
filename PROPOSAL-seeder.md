@@ -204,15 +204,22 @@ xf_hampel_seeder_record
   batch         varchar(50)
   entity        varchar(100)     short name: 'XF:Thread'
   entity_id     varbinary(100)   primary key value; JSON for a composite key
-  record_date   uint
+  factory       varchar(150)     the factory class that made it, if one did; nullable
+  record_date   uint             the real time of recording, not the entity's moved clock
 ```
+
+`(entity, entity_id)` is unique, so an entity belongs to the batch that recorded it first.
 
 **Keyed by entity short name, not content type** — nodes, user groups and most add-on entities
 have no content type.
 
 **Clean walks the batch in descending `record_id`.** Creation order is already dependency order,
 so reversing it deletes posts before threads before forums before users, with no per-type ordering
-table to maintain. Each factory may override `remove()`; the default is `$entity->delete()`.
+table to maintain. Each factory may override `remove()`; the default is `$entity->delete()`. The `factory` column is
+how clean finds that override without a table of which type needs what.
+
+**A record that cannot be removed stays**, the rest of the batch is still cleaned, and the command
+exits 1 — so clean can be run again. An entity already gone is reported and its record cleared.
 
 Then, in order:
 

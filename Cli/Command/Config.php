@@ -3,6 +3,7 @@
 use Hampel\Seeder\Cli\RendersReport;
 use Hampel\Seeder\Config as SeederConfig;
 use Hampel\Seeder\Guard;
+use Hampel\Seeder\Repository\RecordRepository;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -43,6 +44,10 @@ class Config extends Command
 		$this->heading('Guard');
 		$this->detail('seeding allowed', (Guard::isEnabled() ? 'yes' : 'no')
 			. (SeederConfig::has('enabled') ? self::FROM_CONFIG : ' ' . $this->muted('(not in config.php)')));
+
+		$this->heading('Records');
+		$repo = \XF::repository(RecordRepository::class);
+		$this->detail('batches on this forum', $repo->tableExists() ? (string) count($repo->getBatches()) : '');
 
 		$this->heading('Generated content');
 		$this->detail('locale', SeederConfig::locale()

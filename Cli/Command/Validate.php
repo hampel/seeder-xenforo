@@ -4,6 +4,7 @@ use Faker\Factory;
 use Hampel\Seeder\Cli\RendersReport;
 use Hampel\Seeder\Config as SeederConfig;
 use Hampel\Seeder\Guard;
+use Hampel\Seeder\Repository\RecordRepository;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -51,6 +52,12 @@ class Validate extends Command
 			$this->guard();
 		});
 
+		$this->checkSection('Records');
+		$this->probe('record table', function ()
+		{
+			$this->records();
+		});
+
 		$this->checkSection('Generator');
 		$this->probe('Faker', function ()
 		{
@@ -93,6 +100,22 @@ class Validate extends Command
 		{
 			$this->checkWarn('seeding allowed', "switched off - config.php has no \$config['hampelSeeder']['enabled']");
 		}
+	}
+
+	/**
+	 * Without the table nothing can be recorded, so nothing created could be removed again.
+	 */
+	protected function records(): void
+	{
+		$repo = \XF::repository(RecordRepository::class);
+		if (!$repo->tableExists())
+		{
+			$this->checkFail('record table', 'missing - reinstall the add-on');
+
+			return;
+		}
+
+		$this->checkOk('record table', count($repo->getBatches()) . ' batch(es) recorded');
 	}
 
 	protected function generator(): void
