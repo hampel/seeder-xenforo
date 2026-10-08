@@ -45,6 +45,8 @@ class RoundTrip
 		$batch = 'validate-' . gmdate('Ymd-His') . '-' . substr(bin2hex(random_bytes(3)), 0, 4);
 
 		$lastError = (int) $db->fetchOne('SELECT COALESCE(MAX(error_id), 0) FROM xf_error_log');
+
+		$this->settlePermissions();
 		$before = $this->counts();
 
 		$seeded = $this->seed($batch);
@@ -113,6 +115,23 @@ class RoundTrip
 		}
 
 		return [$leaks, $other];
+	}
+
+	/**
+	 * Rebuild permissions before counting anything. Creating a forum queues a rebuild, and a
+	 * rebuild also prunes permission combinations nobody uses any more - so on a forum that has
+	 * some, the permission tables shrink during the round trip for reasons that are not ours,
+	 * and read as a difference. Doing it first makes before and after comparable.
+	 */
+	protected function settlePermissions(): void
+	{
+		$manager = \XF::app()->jobManager();
+		$manager->enqueueUnique('permissionRebuild', 'XF:PermissionRebuild', [], false);
+
+		for ($pass = 0; $pass < 500 && $manager->getUniqueJob('permissionRebuild'); $pass++)
+		{
+			$manager->runUnique('permissionRebuild', 8);
+		}
 	}
 
 	protected function seed(string $batch): array
