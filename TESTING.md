@@ -102,6 +102,12 @@ without leaving the add-on marked as processing, and allows it once nothing is r
 
 - **After building a release, unzip it and confirm `vendor/fakerphp/` is inside** and that
   `CLAUDE.md`, `TESTING.md` and `PROPOSAL-seeder.md` are not.
+- **A disposable forum, before a release.** Install the built zip on a fresh XenForo with
+  development off, switch seeding on, and run in order: `seeder:validate`, `seeder:run`, an
+  uninstall (refused), `seeder:clean`, an uninstall (succeeds, and the record table is gone). Last
+  run on 2026-10-08 against XenForo 2.3.12 and PHP 8.3, all as described.
+- **An uninstall from the admin control panel** has not been clicked; the command line takes the
+  same path to the listener.
 - **`seeder:validate` on a real forum, with the queue live**, after any change to a factory or to
   cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
   it is what found the permission-cache leak.

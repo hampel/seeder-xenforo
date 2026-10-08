@@ -370,6 +370,10 @@ seeded.
   process. Seed and clean in one process and the rebuild after cleaning wrote the deleted forum's
   permission rows back. Found by the round trip the first time it ran; the builder is now dropped
   before queued jobs are run. Seeding and cleaning in separate commands never showed it.
+- **A permission rebuild prunes combinations nobody uses.** On a fresh forum the permission tables
+  therefore shrank during the round trip and read as left behind. The round trip now rebuilds
+  permissions before its first count. Found by running `seeder:validate` on a freshly installed
+  forum, which the development install could never be.
 - **DDL commits.** A test that created a table ended its own transaction, and the rows it wrote
   afterwards stayed. No test here may run DDL.
 - **A bare web address in a post is turned into a preview, which XenForo fetches.** Generated
