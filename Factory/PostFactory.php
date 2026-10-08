@@ -8,8 +8,8 @@ use XF\Service\Thread\ReplierService;
  * A reply to a thread, written through XenForo's own replier and dated after the thread's last
  * post - so replies made one after another come out in order. Its notifications are never sent.
  *
- * Besides the post's columns, the attributes are message, message_parts and attachments, as for a
- * thread.
+ * Besides the post's columns, the attributes are message, message_parts, attachments and deleted,
+ * as for a thread.
  */
 class PostFactory extends AbstractFactory
 {
@@ -26,6 +26,9 @@ class PostFactory extends AbstractFactory
 			'user_id' => UserFactory::new(),
 			'message_parts' => [],
 			'attachments' => 0,
+			'deleted' => false,
+			'delete_reason' => '',
+			'deleted_by' => null,
 			'message' => function (array $attributes) use ($context)
 			{
 				return $context->faker->bbCodeMessage($attributes['message_parts'] ?: ['short']);
@@ -42,6 +45,25 @@ class PostFactory extends AbstractFactory
 				));
 			},
 		];
+	}
+
+	/**
+	 * Awaiting approval: in the approval queue, and not counted in the thread.
+	 *
+	 * @return static
+	 */
+	public function moderated() { return $this->state(['message_state' => 'moderated']); }
+
+	/**
+	 * Posted and then soft-deleted, with a deletion log entry.
+	 *
+	 * @param \XF\Entity\User|null $by who deleted it; its author if omitted
+	 *
+	 * @return static
+	 */
+	public function deleted(string $reason = '', ?\XF\Entity\User $by = null)
+	{
+		return $this->state(['deleted' => true, 'delete_reason' => $reason, 'deleted_by' => $by ? $by->user_id : null]);
 	}
 
 	/** @return static */
@@ -85,7 +107,8 @@ class PostFactory extends AbstractFactory
 
 		$post = $replier->getPost();
 		$own = array_diff_key($attributes, array_flip(
-			['thread_id', 'user_id', 'message', 'message_parts', 'attachments', 'post_date']
+			['thread_id', 'user_id', 'message', 'message_parts', 'attachments', 'post_date',
+				'deleted', 'delete_reason', 'deleted_by']
 		));
 		$this->fill($post, $own);
 
@@ -95,6 +118,9 @@ class PostFactory extends AbstractFactory
 			'date' => (int) $attributes['post_date'],
 			'message' => $attributes['message'],
 			'attachments' => (int) $attributes['attachments'],
+			'deleted' => (bool) $attributes['deleted'],
+			'delete_reason' => $attributes['delete_reason'],
+			'deleted_by' => $attributes['deleted_by'],
 		]);
 
 		return $post;

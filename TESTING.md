@@ -16,6 +16,11 @@ needs a person.
   entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
   with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
   files in `internal_data`. Removal deletes the entity, then any attachment files left unused.
+- **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
+  alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
+  content is silenced first. Published to the news feed by hand, with the date corrected.
+- **Content states** — moderated content is inserted in that state; deleted content is posted and
+  then soft-deleted through `softDelete()` once its replies and reactions exist.
 - **Warnings** — definitions through their entity and three phrases; warnings through the
   `Warning` entity, not XenForo's warn service, which queues a webhook and can send a conversation.
   Saving a warning saves the post it is about and the member it was given to, so both are
@@ -45,6 +50,11 @@ needs a person.
   run, or a rebuild after cleaning writes a deleted forum's permission rows back.
 - **A failed delete leaves a transaction open.** Each removal runs in its own and is unwound to
   where it started, reading the adapter's savepoint count by reflection.
+- **A column default of `\\XF::$time` is evaluated once per process**, when the entity's structure
+  is first built. With the clock moved, that freezes the default at whatever moment the first
+  entity of that kind happened to be saved - so a date left to its default is wrong for every one
+  after it. Known cases are set by hand: deletion log, attachment dates, the reaction feed row.
+  Any new factory has to check the dates of every row its save writes.
 - **A warning past its expiry is saved live and then expired**, in two steps under two clocks, so
   XenForo applies and removes its points itself. Saved in one step it would stay live for ever.
 - **Warning actions are the forum's.** A seeded warning that takes a member past a threshold
@@ -92,6 +102,13 @@ reserved domains with no bare address; a prefix has its phrase and forum associa
 is a real PNG and its file is gone after cleaning; a seeded forum cleans back to its starting
 counts across eighteen tables with no alert, mail, watch, IP or moderator log row; a removal that
 fails mid-transaction is undone and the rest still happen.
+
+For reactions and states: a reaction updates the post's summary and its author's score, is dated
+after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are
+never the author and never repeat; a moderated thread and reply are in the approval queue and not
+counted; a deleted thread was posted, replied to, reacted to and then deleted, its log dated after
+its last reply, its reactions no longer counted, and no moderator log written; attachments carry
+their post's date; all of it cleans back to the starting counts.
 
 For warnings: a definition has its three phrases and cleaning removes them; a warning on a post
 has the right member, moderator, title, points and dates, marks the post, raises the member's

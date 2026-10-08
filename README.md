@@ -5,9 +5,9 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
-**Early development.** It creates members, forums, threads with replies, thread prefixes, image
-attachments, warning definitions and warnings, and removes them again. Reactions, conversations,
-polls and profile posts are not built yet.
+**Early development.** It creates members, forums, threads with replies, reactions, thread prefixes,
+image attachments, content awaiting approval or soft-deleted, warning definitions and warnings,
+and removes them again. Conversations, polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -68,7 +68,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (3, the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `Sample` | a little of everything above; what `seeder:validate` seeds and removes | |
 
@@ -121,8 +121,9 @@ ThreadFactory::new()
 | factory | builds | states |
 |---|---|---|
 | `ForumFactory` | a forum; the entity returned is its node | |
-| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)` |
-| `PostFactory` | a reply | `withQuote()`, `withAttachment(n)` |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)` |
+| `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)` |
+| `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
 | `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |
 
 The `with...()` states add up: `->withQuote()->withList()` gives a first post with both. Set
@@ -132,6 +133,23 @@ The `with...()` states add up: `->withQuote()->withList()` gives a first post wi
 is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no
 moderator log is written. Replies are dated after the post they follow and never before their
 author joined. Attachments are real PNG images. Links and images point at `example.com`.
+
+**Content states.** `moderated()` posts the thread or reply as awaiting approval: it is in the
+approval queue and not counted. `deleted()` posts it, gives it whatever replies and reactions were
+asked for, and then soft-deletes it — the order it happens in on a real forum — with a deletion log
+entry dated after its last reply.
+
+**Reactions.** The member reacting is drawn from those given to `recycle()`, never the author and
+never the same member twice; if nobody is left, a new member is made. A reaction updates the
+post's summary and its author's score, appears in the news feed, and alerts nobody.
+
+```php
+ThreadFactory::new()
+	->recycle($members)
+	->has(ReactionFactory::new()->count([0, 5]))                      // on the first post
+	->has(PostFactory::new()->count(4)->has(ReactionFactory::new()->count([0, 3])))
+	->create();
+```
 
 ### Warnings
 

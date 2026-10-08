@@ -45,13 +45,25 @@ entity the save touches, not only the one being saved** - applying a warning sav
 the member too.
 
 **Prefer the entity to a XenForo service where the service does something outward.** The warn
-service always queues a webhook, so warnings are written through the entity.
+service and the reaction repository both queue a webhook and can alert, so warnings and reactions
+are written through their entities.
 
 **Anything new the add-on learns to create goes into `Seed\SampleSeeder`**, which is what
 `seeder:validate` seeds and removes.
 
 **Never generate a bare web address in a message.** XenForo turns one into a link preview and
 queues a job that fetches it. Generated links carry link text and point at `example.com`.
+
+## A date left to its column default is wrong
+
+**`'default' => \XF::$time` in an entity structure is evaluated once per process**, when the
+structure is first built. With the clock moved for each save, the default freezes at whichever
+moment that happened to be, and every later row of that kind gets it. Found on 2026-10-08 as
+deletion log entries all carrying one date, a month before the posts they were about.
+
+So moving the clock is not enough for a row whose date is a default. **For every row a new
+factory's save writes, read the date back and compare it** - and where it is a default, set it
+by hand afterwards, as `WritesPosts::finish()`, `attach()` and `ReactionFactory::store()` do.
 
 ## Dates on posts are forced in after validation
 

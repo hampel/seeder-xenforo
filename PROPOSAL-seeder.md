@@ -295,9 +295,9 @@ Each phase ends with something that runs.
 6. **Forums, threads, posts and `Timeline`.** `has`, `for`, `recycle`. `DefaultSeeder` and
    `--span`. *Done 2026-10-08, with thread prefixes and image attachments brought forward from
    phase 7 because the first consumer needed them.*
-7. **The rest, each as its own factory, as something needs it:** reactions, conversations,
-   profile posts, polls and bans, then XFRM and XFMG. *Warnings and warning definitions done
-   2026-10-08.*
+7. **The rest, each as its own factory, as something needs it:** conversations, profile posts,
+   polls and bans, then XFRM and XFMG. *Warnings, warning definitions, reactions, and moderated and soft-deleted content
+   done 2026-10-08.*
 
 ### The no-trace test is the acceptance test
 
@@ -375,6 +375,14 @@ seeded.
   therefore shrank during the round trip and read as left behind. The round trip now rebuilds
   permissions before its first count. Found by running `seeder:validate` on a freshly installed
   forum, which the development install could never be.
+- **A column default of `\XF::$time` is evaluated once per process.** Moving the clock per save
+  therefore does not date a row whose date is left to its default: the default froze when the
+  structure was first built. Deletion log entries all carried one date, a month before their
+  posts; reaction feed rows and attachment dates had the same fault. Each is now set by hand.
+  This is the real limit of the moved clock, and the earlier note above understated it.
+- **Content is deleted last.** Deleting a thread as it was stored meant its replies and reactions
+  were added to an already-deleted thread. A `finish()` step now runs after everything `has()`
+  created.
 - **XenForo's warn service always queues a webhook**, and can start a conversation with the
   member. Warnings are written through the entity instead, which is where the points, the mark on
   the post and the warning actions are applied anyway.

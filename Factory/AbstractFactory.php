@@ -343,6 +343,8 @@ abstract class AbstractFactory
 			$callback($entity, $this);
 		}
 
+		$this->finish($entity);
+
 		return $entity;
 	}
 
@@ -380,6 +382,14 @@ abstract class AbstractFactory
 	protected function store(Entity $entity): void
 	{
 		$entity->save();
+	}
+
+	/**
+	 * The last thing done to a created entity, after everything has() gave it exists - for what
+	 * happens to content once it has had its replies and reactions, such as being deleted.
+	 */
+	protected function finish(Entity $entity): void
+	{
 	}
 
 	/**

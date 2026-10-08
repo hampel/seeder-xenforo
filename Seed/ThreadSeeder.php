@@ -3,6 +3,7 @@
 use Hampel\Seeder\Factory\ForumFactory;
 use Hampel\Seeder\Factory\PostFactory;
 use Hampel\Seeder\Factory\PrefixFactory;
+use Hampel\Seeder\Factory\ReactionFactory;
 use Hampel\Seeder\Factory\ThreadFactory;
 use Hampel\Seeder\Factory\UserFactory;
 
@@ -18,6 +19,10 @@ use Hampel\Seeder\Factory\UserFactory;
  *     forum     the node id of an existing forum to post in; a new forum is made if omitted
  *     authors   how many members to create as authors (5)
  *     prefix    1 to create a thread prefix and give it to some threads, 0 for none (1)
+ *     reactions the most reactions a post gets, from the authors; each gets between none and
+ *               this many, and never more than there are other authors to give them (3)
+ *     states    1 to add threads and replies that are awaiting approval or soft-deleted, about
+ *               one in six of each; 0 for everything visible (0)
  *
  * A seeder that calls this one may pass `author_pool` and `forum_pool`, collections of existing
  * members and forum nodes, in place of authors and forum.
@@ -52,13 +57,36 @@ class ThreadSeeder extends AbstractSeeder
 				'prefix_id' => $prefix ? $prefix->prefix_id : 0],
 		];
 
-		ThreadFactory::new()
+		$replies = PostFactory::new()->count([0, $this->count('replies', 5)]);
+		$threads = ThreadFactory::new()
 			->count($this->count('threads', 12))
 			->recycle($authors)
 			->recycle($forums)
-			->sequence(...$variations)
-			->has(PostFactory::new()->count([0, $this->count('replies', 5)]))
-			->create();
+			->sequence(...$variations);
+
+		// a member cannot react to their own post, so each post has one fewer to draw on than
+		// there are authors; past that the factory would make new members to do the reacting
+		$reactions = min($this->count('reactions', 3), max(0, count($authors) - 1));
+		if ($reactions)
+		{
+			$replies = $replies->has(ReactionFactory::new()->count([0, $reactions]));
+			$threads = $threads->has(ReactionFactory::new()->count([0, $reactions]));
+		}
+
+		if ($this->count('states', 0))
+		{
+			$hidden = function ($index)
+			{
+				return [[], [], ['discussion_state' => 'moderated'], [], ['deleted' => true, 'delete_reason' => 'Seeded as deleted'], []][$index % 6];
+			};
+			$threads = $threads->sequence($hidden);
+			$replies = $replies->sequence(function ($index)
+			{
+				return [[], [], [], ['message_state' => 'moderated'], [], ['deleted' => true]][$index % 6];
+			});
+		}
+
+		$threads->has($replies)->create();
 	}
 
 	private function forum()

@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Factory\Concerns;
 
+use Hampel\Seeder\Clock;
 use XF\Entity\User;
 use XF\FileWrapper;
 use XF\Mvc\Entity\Entity;
@@ -42,6 +43,39 @@ trait WritesPosts
 	}
 
 	/**
+	 * Soft-delete what was posted, if that was asked for, once its replies and reactions exist:
+	 * after the last of them, by the member named or else by its author. Posted, replied to and
+	 * then deleted is the history deleted content really has, and it leaves the counters and the
+	 * reaction scores where XenForo would.
+	 */
+	protected function finish(Entity $entity): void
+	{
+		$pending = $this->pending($entity);
+		if (!$pending['deleted'])
+		{
+			return;
+		}
+
+		$by = $pending['deleted_by'] ? $this->author((int) $pending['deleted_by']) : $pending['author'];
+		$when = $this->context()->timeline->after(max($pending['date'], (int) ($entity->last_post_date ?? 0)));
+
+		static::silence($entity);
+		Clock::at($when, function () use ($entity, $pending, $by)
+		{
+			$entity->softDelete((string) $pending['delete_reason'], $by);
+		});
+
+		// the log's own date is a column default, fixed when its structure was first built
+		$log = \XF::em()->findOne('XF:DeletionLog', [
+			'content_type' => $entity->getEntityContentType(), 'content_id' => $entity->getEntityId(),
+		]);
+		if ($log)
+		{
+			$log->fastUpdate('delete_date', $when);
+		}
+	}
+
+	/**
 	 * @param object $service a thread creator or replier, already validated or not
 	 */
 	protected function assertValid($service): void
@@ -75,6 +109,10 @@ trait WritesPosts
 			$file = new FileWrapper(self::image(), "seeded-image-{$i}.png");
 			$attachment = $preparer->insertAttachment($handler, $file, $pending['author'], $hash);
 			$first = $first ?? $attachment->attachment_id;
+
+			// both dates are column defaults, fixed when their structures were first built
+			$attachment->fastUpdate('attach_date', $pending['date']);
+			$attachment->Data->fastUpdate('upload_date', $pending['date']);
 		}
 
 		$service->setAttachmentHash($hash);
