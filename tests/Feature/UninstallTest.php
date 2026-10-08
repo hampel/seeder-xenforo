@@ -59,10 +59,17 @@ class UninstallTest extends TestCase
 		$this->assertDatabaseHas(self::RECORDS, ['batch' => 'test-uninstall']);
 	}
 
+	/**
+	 * With the repository mocked: the real table holds other people's batches, and emptying it to
+	 * set this up would be permanent the day this test's transaction did not hold.
+	 */
 	public function test_uninstall_is_allowed_once_nothing_is_recorded()
 	{
-		// rows only, inside this test's transaction: no content is touched
-		$this->app()->db()->delete(self::RECORDS, '1 = 1');
+		$this->mockRepository('Hampel\\Seeder:Record', function ($mock)
+		{
+			$mock->expects()->tableExists()->andReturns(true);
+			$mock->expects()->getBatches()->andReturns([]);
+		});
 		$addOn = $this->app()->addOnManager()->getById('Hampel/Seeder');
 
 		Listener::addonPreUninstall($addOn, $addOn->getInstalledAddOn(), []);

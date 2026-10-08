@@ -37,6 +37,8 @@ needs a person.
   quietly: content would all be dated now.
 - **Deleting content is moderator-logged by default**, and other add-ons hook that log. Seeded
   entities have it switched off.
+- **XenForo's permission builder caches the forum tree per process.** Dropped before queued jobs
+  run, or a rebuild after cleaning writes a deleted forum's permission rows back.
 - **A failed delete leaves a transaction open.** Each removal runs in its own and is unwound to
   where it started, reading the adapter's savepoint count by reflection.
 - **The content activity log is dated today**, whatever the content's date.
@@ -82,7 +84,13 @@ is a real PNG and its file is gone after cleaning; a seeded forum cleans back to
 counts across eighteen tables with no alert, mail, watch, IP or moderator log row; a removal that
 fails mid-transaction is undone and the rest still happen.
 
-**Those tests fake the job queue**, so they do not prove the drain. See *Needs a human*.
+For the round trip: the real one, in a transaction, creates and removes a forum and reports no
+table changed; a row left behind in a core table is a leak; differences are sorted into leaks,
+other add-ons' tables and tables that move anyway; each outcome renders as the right row and exit
+code.
+
+**Those tests fake the job queue**, so they do not prove the drain - `seeder:validate` on a real
+forum does. See *Needs a human*.
 
 For uninstalling: the listener is registered for this add-on only, refuses while a batch exists
 without leaving the add-on marked as processing, and allows it once nothing is recorded;
@@ -94,9 +102,9 @@ without leaving the add-on marked as processing, and allows it once nothing is r
 
 - **After building a release, unzip it and confirm `vendor/fakerphp/` is inside** and that
   `CLAUDE.md`, `TESTING.md` and `PROPOSAL-seeder.md` are not.
-- **The round trip on a real forum, with the queue live.** Count the rows in every `xf_` table,
-  run `seeder:run -p users=20 -p threads=50`, then `seeder:clean <batch> --force`, and count again. Nothing but another
-  add-on's own logging should differ, and `xf_job` should be where it started.
+- **`seeder:validate` on a real forum, with the queue live**, after any change to a factory or to
+  cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
+  it is what found the permission-cache leak.
 - The commands have run on XenForo 2.3 only.
 - **An uninstall that goes through has not been run** — only the refusal has, from the command
   line. `uninstallStep1()` drops the record table. The admin control panel's uninstall takes the

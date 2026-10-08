@@ -78,7 +78,7 @@ class CommandsTest extends TestCase
 
 	public function test_validate_with_seeding_off_warns_and_still_exits_zero()
 	{
-		[$code, $output] = $this->runCommand(new Validate());
+		[$code, $output] = $this->runCommand($this->validate());
 
 		$this->assertSame(0, $code);
 		$this->assertMatchesRegularExpression('/\[warn\] seeding allowed +switched off/', $output);
@@ -87,7 +87,7 @@ class CommandsTest extends TestCase
 
 	public function test_strict_makes_a_warning_exit_two()
 	{
-		[$code] = $this->runCommand(new Validate(), ['--strict' => true]);
+		[$code] = $this->runCommand($this->validate(), ['--strict' => true]);
 
 		$this->assertSame(2, $code);
 	}
@@ -96,8 +96,8 @@ class CommandsTest extends TestCase
 	{
 		$this->setConfig('hampelSeeder', ['enabled' => true]);
 
-		[$code, $output] = $this->runCommand(new Validate());
-		[$strict, $strictOutput] = $this->runCommand(new Validate(), ['--strict' => true]);
+		[$code, $output] = $this->runCommand($this->validate());
+		[$strict, $strictOutput] = $this->runCommand($this->validate(), ['--strict' => true]);
 
 		$this->assertSame(0, $code);
 		$this->assertSame(0, $strict, $strictOutput);
@@ -113,7 +113,7 @@ class CommandsTest extends TestCase
 		$this->setConfig('hampelSeeder', ['enabled' => true]);
 		$this->setConfig('enableMail', true);
 
-		[$code, $output] = $this->runCommand(new Validate());
+		[$code, $output] = $this->runCommand($this->validate());
 
 		$this->assertSame(0, $code);
 		$this->assertMatchesRegularExpression('/\[warn\] enableMail +on - this forum can send mail/', $output);
@@ -123,7 +123,7 @@ class CommandsTest extends TestCase
 	{
 		$this->setConfig('hampelSeeder', ['enabled' => true, 'locale' => 'xx_XX']);
 
-		[$code, $output] = $this->runCommand(new Validate());
+		[$code, $output] = $this->runCommand($this->validate());
 
 		$this->assertSame(0, $code);
 		$this->assertMatchesRegularExpression('/\[warn\] locale +xx_XX has no Faker providers/', $output);
@@ -138,6 +138,11 @@ class CommandsTest extends TestCase
 
 		$command = new class extends Validate
 		{
+			protected function roundTrip(): array
+			{
+				return CommandsTest::roundTripResult();
+			}
+
 			protected function generator(): void
 			{
 				throw new \RuntimeException('the generator broke');
@@ -159,6 +164,11 @@ class CommandsTest extends TestCase
 	{
 		$command = new class extends Validate
 		{
+			protected function roundTrip(): array
+			{
+				return CommandsTest::roundTripResult();
+			}
+
 			protected function generator(): void
 			{
 				throw new \RuntimeException('the generator broke');
@@ -175,10 +185,115 @@ class CommandsTest extends TestCase
 	{
 		$this->setConfig('hampelSeeder', ['enabled' => true]);
 
-		$this->runCommand(new Validate());
-		$this->runCommand(new Validate(), ['--unattended' => true]);
+		$this->runCommand($this->validate());
+		$this->runCommand($this->validate(), ['--unattended' => true]);
 
 		$this->assertNoMailSent();
+	}
+
+	public function test_the_round_trip_is_skipped_unattended_and_with_seeding_off()
+	{
+		[, $off] = $this->runCommand($this->validate(['leaks' => ['xf_post' => [1, 2]]]));
+		$this->assertMatchesRegularExpression('/\[    \] round trip +skipped - seeding is switched off/', $off);
+		$this->assertStringNotContainsString('[fail]', $off);
+
+		$this->setConfig('hampelSeeder', ['enabled' => true]);
+		[$code, $unattended] = $this->runCommand($this->validate(['leaks' => ['xf_post' => [1, 2]]]), ['--unattended' => true]);
+		$this->assertSame(0, $code);
+		$this->assertMatchesRegularExpression('/\[    \] round trip +skipped - --unattended/', $unattended);
+	}
+
+	public function test_a_round_trip_that_leaves_nothing_reports_what_it_made_and_compared()
+	{
+		$this->setConfig('hampelSeeder', ['enabled' => true]);
+
+		[$code, $output] = $this->runCommand($this->validate());
+
+		$this->assertSame(0, $code);
+		$this->assertMatchesRegularExpression('/\[ ok \] seeded +XF:User x 3, XF:Thread x 8 in 1\.5s/', $output);
+		$this->assertMatchesRegularExpression('/\[ ok \] cleaned +11 removed/', $output);
+		$this->assertMatchesRegularExpression("/\[ ok \] no trace +280 tables compared, XenForo's own all back/", $output);
+	}
+
+	public function test_a_core_table_that_does_not_come_back_fails_the_run()
+	{
+		$this->setConfig('hampelSeeder', ['enabled' => true]);
+
+		[$code, $output] = $this->runCommand($this->validate(['leaks' => ['xf_news_feed' => [28, 40]]]));
+
+		$this->assertSame(1, $code);
+		$this->assertMatchesRegularExpression('/\[fail\] left behind +xf_news_feed went from 28 rows to 40/', $output);
+		$this->assertStringNotContainsString('no trace', $output);
+	}
+
+	public function test_another_add_ons_table_and_new_error_log_rows_are_warnings()
+	{
+		$this->setConfig('hampelSeeder', ['enabled' => true]);
+
+		[$code, $output] = $this->runCommand($this->validate([
+			'other' => ['xf_someone_log' => [5, 9]],
+			'errors' => ['Something else broke'],
+		]));
+		[$strict] = $this->runCommand($this->validate(['other' => ['xf_someone_log' => [5, 9]]]), ['--strict' => true]);
+
+		$this->assertSame(0, $code);
+		$this->assertSame(2, $strict);
+		$this->assertMatchesRegularExpression('/\[warn\] other add-on +xf_someone_log went from 5 rows to 9/', $output);
+		$this->assertMatchesRegularExpression('/\[warn\] server error log +1 new while this ran, first: Something else broke/', $output);
+		$this->assertMatchesRegularExpression('/\[ ok \] no trace/', $output);
+	}
+
+	public function test_a_seeder_failure_and_a_removal_failure_each_fail_the_run()
+	{
+		$this->setConfig('hampelSeeder', ['enabled' => true]);
+
+		[$code, $output] = $this->runCommand($this->validate([
+			'seed_failure' => 'RuntimeException: could not post',
+			'failed' => [['entity' => 'XF:Post', 'id' => '9', 'error' => 'LogicException: no']],
+		]));
+
+		$this->assertSame(1, $code);
+		$this->assertMatchesRegularExpression('/\[fail\] seeded +RuntimeException: could not post/', $output);
+		$this->assertMatchesRegularExpression('/\[fail\] cleaned +1 could not be removed, first XF:Post 9 - LogicException: no\. Left in batch validate-test/', $output);
+	}
+
+	/**
+	 * What a round trip that left nothing behind reports.
+	 */
+	public static function roundTripResult(array $with = []): array
+	{
+		return $with + [
+			'batch' => 'validate-test',
+			'created' => ['XF:User' => 3, 'XF:Thread' => 8],
+			'seed_failure' => null,
+			'removed' => 11,
+			'failed' => [],
+			'tables' => 280,
+			'leaks' => [],
+			'other' => [],
+			'errors' => [],
+			'seconds' => 1.5,
+		];
+	}
+
+	/**
+	 * seeder:validate with its round trip replaced by a given result. The real one creates and
+	 * removes content, which no test outside a transaction may do.
+	 */
+	private function validate(array $with = []): Validate
+	{
+		$command = new class extends Validate
+		{
+			public $result = [];
+
+			protected function roundTrip(): array
+			{
+				return CommandsTest::roundTripResult($this->result);
+			}
+		};
+		$command->result = $with;
+
+		return $command;
 	}
 
 	private function runCommand($command, array $input = []): array

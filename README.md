@@ -235,6 +235,21 @@ could not be removed stays recorded, so the command can be run again.
 1 always means a check failed. This is not the monitoring-plugin numbering, where 1 is a warning
 and 2 is critical.
 
+### The round trip
+
+**`seeder:validate` seeds a small forum, removes it, and compares the row count of every table
+before and after.** It is the proof that cleaning leaves nothing behind on this forum, with this
+forum's add-ons installed. It takes a couple of seconds on a small forum; counting every table of
+a large one takes longer.
+
+| it reports | when |
+|---|---|
+| `[fail] left behind` | one of XenForo's own tables did not return to its count |
+| `[warn] other add-on` | another add-on's table differs — it may log what ran, or hold something of ours |
+| `[warn] server error log` | entries were written while it ran |
+
+`--unattended` skips it, and it never runs with seeding switched off.
+
 ### Uninstalling
 
 **The add-on refuses to uninstall while any batch is recorded.** Uninstalling drops the records,
@@ -257,6 +272,9 @@ forgets can never be cleaned.
   unless statistics are rebuilt, and if they are rebuilt while seeded content exists, cleaning
   does not take it back out. Rebuild again after cleaning.
 - **Seeding and cleaning both take about a second per fifty posts.**
+- **Another add-on's own tables are that add-on's to clean.** Removal goes through XenForo's
+  entities, so an add-on that cleans up when a member or post is deleted is handled; one that does
+  not will show as a warning in `seeder:validate`.
 
 ## Mail
 

@@ -1,11 +1,7 @@
 <?php namespace Hampel\Seeder\Cli\Command;
 
-use Hampel\Seeder\CollectingRecorder;
-use Hampel\Seeder\Config as SeederConfig;
-use Hampel\Seeder\Context;
 use Hampel\Seeder\Guard;
-use Hampel\Seeder\NullRecorder;
-use Hampel\Seeder\Record\JobDrain;
+use Hampel\Seeder\Record\SeedRunner;
 use Hampel\Seeder\Record\TableRecorder;
 use Hampel\Seeder\Repository\RecordRepository;
 use Hampel\Seeder\Seed\Resolver;
@@ -74,34 +70,15 @@ class Run extends Command
 			return 1;
 		}
 
-		$faker = Context::faker(SeederConfig::locale(), $seed);
-		$recorder = new CollectingRecorder($batch === null ? new NullRecorder() : new TableRecorder($batch));
-		$password = $faker->regexify('[a-z]{4}-[a-z]{4}-[0-9]{4}');
-
 		if ($batch === null)
 		{
 			$errors->writeln('<comment>Not recording: what this run creates cannot be removed by seeder:clean.</comment>');
 		}
 
-		$previous = Context::use(new Context($faker, $recorder, $timeline, $password));
-		$failure = null;
-		$jobs = new JobDrain();
-		$jobs->start();
-		try
-		{
-			(new $class($params))->run();
-		}
-		catch (\Throwable $e)
-		{
-			$failure = $e;
-		}
-		finally
-		{
-			Context::use($previous);
-			$jobs->finish();
-		}
-
-		$created = $recorder->created();
+		$result = (new SeedRunner())->run($class, $params, $timeline, $seed, $batch);
+		$created = $result['created'];
+		$failure = $result['failure'];
+		$password = $result['password'];
 
 		$output->writeln(json_encode([
 			'batch' => $batch,

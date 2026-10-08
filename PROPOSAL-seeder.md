@@ -290,8 +290,8 @@ Each phase ends with something that runs.
 4. **A first consumer in another add-on.** The mechanism exists; what is untested is whether it
    is a usable harness, and the case that tests it is an add-on with its own tables. That factory
    is written in the other add-on, by its own session.
-5. **The no-trace test** (below), which every later phase must keep passing. *Not automated yet:
-   run by hand after each phase, and as a table list inside the test suite.*
+5. **The no-trace test** (below), which every later phase must keep passing. *Done 2026-10-08,
+   as the round trip in `seeder:validate` - not as a sandbox-only test, see below.*
 6. **Forums, threads, posts and `Timeline`.** `has`, `for`, `recycle`. `DefaultSeeder` and
    `--span`. *Done 2026-10-08, with thread prefixes and image attachments brought forward from
    phase 7 because the first consumer needed them.*
@@ -300,10 +300,20 @@ Each phase ends with something that runs.
 
 ### The no-trace test is the acceptance test
 
-**Count the rows in every `xf_` table, seed, clean, count again; the two must match.** Tables that
-legitimately move (sessions, the job table, caches) go on a short named allow-list. This is the
-test that says cleanup is correct, and it finds the side-effect tables nobody listed. It needs a
-real database, so it runs in a disposable sandbox instance, not in the unit suite.
+**Count the rows in every `xf_` table, seed, clean, count again; the two must match.** This is the
+test that says cleanup is correct, and it finds the side-effect tables nobody listed.
+
+**It is built into `seeder:validate`, not kept as a test for a sandbox.** That is where the house
+pattern puts a check that exercises the real thing, and it means every forum the add-on is
+installed on can prove it for itself, with that forum's own add-ons loaded - which is where the
+leaks come from. It runs by default, is skipped by `--unattended`, and never runs with seeding off.
+
+- A difference in one of XenForo's own tables fails the run.
+- A difference in any other table is a warning: another add-on that logs job runs moves by itself.
+- A short list of tables that move while a forum merely runs is ignored - sessions, the job
+  queue, the error log, the registry, view counters.
+
+It found a leak on its first run: see *Found while building*.
 
 Unit tests cover factory resolution, state merging, sequences and timeline allocation with Faker
 seeded.
@@ -356,6 +366,12 @@ seeded.
 - **Entities made earlier in a process remember relations as first read.** A prefix made before
   its title phrase believes it has none and leaves the phrase behind on delete. Clean clears the
   entity cache before it starts.
+- **XenForo's permission builder keeps the tree of forums it first saw**, for the life of the
+  process. Seed and clean in one process and the rebuild after cleaning wrote the deleted forum's
+  permission rows back. Found by the round trip the first time it ran; the builder is now dropped
+  before queued jobs are run. Seeding and cleaning in separate commands never showed it.
+- **DDL commits.** A test that created a table ended its own transaction, and the rows it wrote
+  afterwards stayed. No test here may run DDL.
 - **A bare web address in a post is turned into a preview, which XenForo fetches.** Generated
   links always carry link text, and point at reserved domains.
 - **A job run inside a test runs with only this add-on loaded**, throws on the first entity

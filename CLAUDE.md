@@ -80,7 +80,16 @@ early** — after which every later write in the test is permanent:
 - **cleaning every batch.** Always name the batch.
 - **attachments write real files**, which a rollback does not remove. A test that attaches must
   clean its batch in a `finally`.
+- **DDL.** `CREATE TABLE` commits. No test here creates or drops a table.
 - anything else that calls `rollbackAll()` or `commit()`.
+
+**Never empty or bulk-delete from the record table in a test**, even inside a transaction. On a
+forum where other people have batches, the day the transaction does not hold their content is
+stranded. Mock `RecordRepository` instead.
+
+**Never run the real `seeder:validate` round trip from a test outside a transaction.**
+`CommandsTest` replaces it with a canned result; `RoundTripTest` runs the real one in a
+transaction with the queue faked.
 
 The framework reports it (*This test's transaction did not survive*). Treat that message as
 "something was left in the database" and go and look.

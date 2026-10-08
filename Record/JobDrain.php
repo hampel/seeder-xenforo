@@ -32,6 +32,11 @@ class JobDrain
 		$manager = \XF::app()->jobManager();
 		$completed = 0;
 
+		// The permission builder keeps the tree of forums it first saw. Seed and clean in one
+		// process and the rebuild after cleaning would still know the forum just deleted, and
+		// write its permission rows back.
+		\XF::app()->container()->decache('permission.builder');
+
 		for ($pass = 0; $pass < self::PASSES; $pass++)
 		{
 			$ids = \XF::db()->fetchAllColumn(
