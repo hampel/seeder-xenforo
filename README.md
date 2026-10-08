@@ -5,9 +5,9 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
-**Early development.** It creates members, forums, threads with replies, thread prefixes and image
-attachments, and removes them again. Reactions, conversations, polls and profile posts are not
-built yet.
+**Early development.** It creates members, forums, threads with replies, thread prefixes, image
+attachments, warning definitions and warnings, and removes them again. Reactions, conversations,
+polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -69,6 +69,8 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none) |
+| `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
+| `Sample` | a little of everything above; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -130,6 +132,39 @@ The `with...()` states add up: `->withQuote()->withList()` gives a first post wi
 is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no
 moderator log is written. Replies are dated after the post they follow and never before their
 author joined. Attachments are real PNG images. Links and images point at `example.com`.
+
+### Warnings
+
+```php
+$definitions = WarningDefinitionFactory::new()->count(6)->create();
+
+WarningFactory::new()
+	->count(20)
+	->recycle($posts)            // each about one of these posts
+	->recycle($definitions)      // each for one of these reasons
+	->by($moderator)
+	->create();
+```
+
+| factory | builds | states |
+|---|---|---|
+| `WarningDefinitionFactory` | a reason a moderator can pick, with its title and conversation phrases | `permanent()`, `points(n)` |
+| `WarningFactory` | a warning given to a member, by default for a post | `for($post)`, `against($user)`, `by($moderator)`, `custom($title, $points)`, `permanent()`, `expired()` |
+
+**A warning is applied as XenForo applies one**: the member's warning points go up, the post is
+marked, and any warning actions the forum has set for that many points are triggered. A warning
+whose expiry has already passed is then expired, so its points come back off. Removing a warning
+reverses all of it.
+
+**It tells nobody.** XenForo's own warn service sends a webhook and can start a conversation with
+the member; a seeded warning does neither, alerts nobody, and writes no moderator log.
+
+With no definitions given to `recycle()`, a warning uses one of the forum's own; on a forum with
+none, it is written out as a custom warning. To seed definitions alone:
+
+```bash
+php cmd.php seeder:run Warning -p warnings=0 -p definitions=12
+```
 
 ### Your own seeders and factories
 
@@ -237,7 +272,7 @@ and 2 is critical.
 
 ### The round trip
 
-**`seeder:validate` seeds a small forum, removes it, and compares the row count of every table
+**`seeder:validate` seeds a little of everything the add-on can create, removes it, and compares the row count of every table
 before and after.** It is the proof that cleaning leaves nothing behind on this forum, with this
 forum's add-ons installed. It takes a couple of seconds on a small forum; counting every table of
 a large one takes longer.

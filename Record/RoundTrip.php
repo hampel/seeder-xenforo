@@ -1,11 +1,11 @@
 <?php namespace Hampel\Seeder\Record;
 
-use Hampel\Seeder\Seed\ThreadSeeder;
+use Hampel\Seeder\Seed\SampleSeeder;
 use Hampel\Seeder\Timeline;
 use XF\Install\Data\MySql;
 
 /**
- * Seeds a small forum, removes it, and compares the row count of every table before and after.
+ * Seeds a little of everything the add-on can create, removes it, and compares the row count of every table before and after.
  * This is the proof that cleaning leaves nothing behind: a table nobody thought to list shows up
  * here as a count that did not come back.
  *
@@ -22,8 +22,6 @@ class RoundTrip
 		'xf_flood_check', 'xf_image_proxy', 'xf_job', 'xf_link_proxy', 'xf_login_attempt', 'xf_search',
 		'xf_session', 'xf_session_activity', 'xf_session_admin', 'xf_thread_view',
 	];
-
-	private const PARAMS = ['threads' => 8, 'replies' => 2, 'authors' => 3, 'prefix' => 1];
 
 	/**
 	 * @return array [
@@ -136,7 +134,7 @@ class RoundTrip
 
 	protected function seed(string $batch): array
 	{
-		return (new SeedRunner())->run(ThreadSeeder::class, self::PARAMS, Timeline::span(Timeline::DEFAULT_SPAN), null, $batch);
+		return (new SeedRunner())->run(SampleSeeder::class, [], Timeline::span(Timeline::DEFAULT_SPAN), null, $batch);
 	}
 
 	protected function clean(string $batch): array

@@ -33,6 +33,7 @@ class ContentTest extends TestCase
 		parent::setUp();
 
 		$this->setConfig('hampelSeeder', ['enabled' => true]);
+		$this->useTemporaryCodeCache();
 		$this->fakesMail();
 		$this->fakesJobs();
 		$this->previous = Context::use(null);

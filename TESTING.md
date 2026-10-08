@@ -16,6 +16,10 @@ needs a person.
   entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
   with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
   files in `internal_data`. Removal deletes the entity, then any attachment files left unused.
+- **Warnings** — definitions through their entity and three phrases; warnings through the
+  `Warning` entity, not XenForo's warn service, which queues a webhook and can send a conversation.
+  Saving a warning saves the post it is about and the member it was given to, so both are
+  silenced first.
 - **The job queue** — run and clean both run the jobs they queued before returning, and rebuild
   the board statistics cache.
 - **Schema** — one table, `xf_hampel_seeder_record`, created on install and dropped on uninstall.
@@ -41,6 +45,11 @@ needs a person.
   run, or a rebuild after cleaning writes a deleted forum's permission rows back.
 - **A failed delete leaves a transaction open.** Each removal runs in its own and is unwound to
   where it started, reading the adapter's savepoint count by reflection.
+- **A warning past its expiry is saved live and then expired**, in two steps under two clocks, so
+  XenForo applies and removes its points itself. Saved in one step it would stay live for ever.
+- **Warning actions are the forum's.** A seeded warning that takes a member past a threshold
+  triggers whatever the forum has configured - a ban, a group change. XenForo reverses it when the
+  warning is removed; that reversal has only been run on a forum with no actions set.
 - **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
@@ -83,6 +92,15 @@ reserved domains with no bare address; a prefix has its phrase and forum associa
 is a real PNG and its file is gone after cleaning; a seeded forum cleans back to its starting
 counts across eighteen tables with no alert, mail, watch, IP or moderator log row; a removal that
 fails mid-transaction is undone and the rest still happen.
+
+For warnings: a definition has its three phrases and cleaning removes them; a warning on a post
+has the right member, moderator, title, points and dates, marks the post, raises the member's
+points, and leaves the moderator log, conversations and alerts untouched; a warning past its expiry
+is expired with its points taken back; `against()` and `custom()`; the forum's own definitions are
+used when none are given; cleaning takes the points back and unmarks the post.
+
+**Tests that save a prefix or a warning definition use a temporary code cache**
+(`useTemporaryCodeCache()`), because that save recompiles a phrase group into a real file.
 
 For the round trip: the real one, in a transaction, creates and removes a forum and reports no
 table changed; a row left behind in a core table is a leak; differences are sorted into leaks,

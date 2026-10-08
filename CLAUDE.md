@@ -40,7 +40,15 @@ it along.
 No mail, alerts, push notifications, webhooks or moderator log. Do not call a creator service's
 `sendNotifications()`, do not use `User\RegistrationService`, and take email addresses from
 reserved domains only. `AbstractFactory::silence()` switches the `XF:Webhook` behaviour and the
-`log_moderator` option off; a factory that overrides `remove()` must call it.
+`log_moderator` option off; a factory that overrides `remove()` must call it. **Silence every
+entity the save touches, not only the one being saved** - applying a warning saves the post and
+the member too.
+
+**Prefer the entity to a XenForo service where the service does something outward.** The warn
+service always queues a webhook, so warnings are written through the entity.
+
+**Anything new the add-on learns to create goes into `Seed\SampleSeeder`**, which is what
+`seeder:validate` seeds and removes.
 
 **Never generate a bare web address in a message.** XenForo turns one into a link preview and
 queues a job that fetches it. Generated links carry link text and point at `example.com`.
@@ -80,12 +88,19 @@ early** — after which every later write in the test is permanent:
 - **cleaning every batch.** Always name the batch.
 - **attachments write real files**, which a rollback does not remove. A test that attaches must
   clean its batch in a `finally`.
+- **another process deadlocking with it.** MySQL answers a deadlock by rolling the whole
+  transaction back, and the test carries on outside one. Another add-on's suite running against
+  the same database at the same moment is enough. If a run fails on `DeadlockException`, check
+  `pgrep -af phpunit` before believing anything else it reports, then look for what it left.
 - **DDL.** `CREATE TABLE` commits. No test here creates or drops a table.
 - anything else that calls `rollbackAll()` or `commit()`.
 
 **Never empty or bulk-delete from the record table in a test**, even inside a transaction. On a
 forum where other people have batches, the day the transaction does not hold their content is
 stranded. Mock `RecordRepository` instead.
+
+**A test that saves a prefix or a warning definition calls `useTemporaryCodeCache()`.** Saving one
+recompiles a phrase group into the code cache, a real file a rollback does not put back.
 
 **Never run the real `seeder:validate` round trip from a test outside a transaction.**
 `CommandsTest` replaces it with a canned result; `RoundTripTest` runs the real one in a

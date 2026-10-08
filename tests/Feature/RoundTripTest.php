@@ -20,6 +20,7 @@ class RoundTripTest extends TestCase
 		parent::setUp();
 
 		$this->setConfig('hampelSeeder', ['enabled' => true]);
+		$this->useTemporaryCodeCache();
 		$this->fakesMail();
 		$this->fakesJobs();
 	}
@@ -32,7 +33,10 @@ class RoundTripTest extends TestCase
 
 		$this->assertNull($result['seed_failure']);
 		$this->assertSame([], $result['failed']);
-		$this->assertSame(['XF:User' => 3, 'XF:Node' => 1, 'XF:ThreadPrefix' => 1, 'XF:Thread' => 8], array_slice($result['created'], 0, 4, true));
+		$this->assertSame(9, $result['created']['XF:Thread']);
+		$this->assertSame(5, $result['created']['XF:Warning']);
+		$this->assertSame(2, $result['created']['XF:WarningDefinition']);
+		$this->assertSame(1, $result['created']['XF:ThreadPrefix']);
 		$this->assertSame(array_sum($result['created']), $result['removed']);
 		$this->assertSame([], $result['leaks']);
 		$this->assertSame([], $result['other']);

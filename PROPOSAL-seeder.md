@@ -295,8 +295,9 @@ Each phase ends with something that runs.
 6. **Forums, threads, posts and `Timeline`.** `has`, `for`, `recycle`. `DefaultSeeder` and
    `--span`. *Done 2026-10-08, with thread prefixes and image attachments brought forward from
    phase 7 because the first consumer needed them.*
-7. **The rest, each as its own factory:** reactions, conversations, profile posts, polls, bans
-   and warnings, then XFRM and XFMG.
+7. **The rest, each as its own factory, as something needs it:** reactions, conversations,
+   profile posts, polls and bans, then XFRM and XFMG. *Warnings and warning definitions done
+   2026-10-08.*
 
 ### The no-trace test is the acceptance test
 
@@ -374,6 +375,16 @@ seeded.
   therefore shrank during the round trip and read as left behind. The round trip now rebuilds
   permissions before its first count. Found by running `seeder:validate` on a freshly installed
   forum, which the development install could never be.
+- **XenForo's warn service always queues a webhook**, and can start a conversation with the
+  member. Warnings are written through the entity instead, which is where the points, the mark on
+  the post and the warning actions are applied anyway.
+- **Saving a prefix or a warning definition writes a real file** - the compiled phrase group in
+  the code cache - which a rolled-back test transaction leaves behind, and which the command line
+  cannot chmod once the web server has written it. Tests point the code cache at a temporary
+  directory.
+- **Two test suites on one database deadlock.** Another add-on's suite, running at the same
+  moment against the same development database, held locks this one needed; MySQL rolled this
+  one's transaction back and its later writes became permanent. Nothing here can prevent that.
 - **DDL commits.** A test that created a table ended its own transaction, and the rows it wrote
   afterwards stayed. No test here may run DDL.
 - **A bare web address in a post is turned into a preview, which XenForo fetches.** Generated
