@@ -112,6 +112,3 @@ without leaving the add-on marked as processing, and allows it once nothing is r
   cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
   it is what found the permission-cache leak.
 - The commands have run on XenForo 2.3 only.
-- **An uninstall that goes through has not been run** — only the refusal has, from the command
-  line. `uninstallStep1()` drops the record table. The admin control panel's uninstall takes the
-  same path to the listener but has not been clicked.
