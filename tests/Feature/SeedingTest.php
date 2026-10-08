@@ -156,6 +156,60 @@ class SeedingTest extends TestCase
 		$this->assertCount(40, array_unique($users->pluckNamed('email')));
 	}
 
+	public function test_a_state_can_set_a_members_option_profile_and_privacy_rows()
+	{
+		$this->recordInto('test-related');
+
+		$on = UserFactory::new()->create([
+			'Option.receive_admin_email' => true,
+			'Profile.location' => 'Seedertown',
+			'Privacy.allow_view_profile' => 'none',
+		]);
+		$off = UserFactory::new()->state(['Option.receive_admin_email' => false])->create();
+
+		$this->assertDatabaseHas('xf_user_option', ['user_id' => $on->user_id, 'receive_admin_email' => 1]);
+		$this->assertDatabaseHas('xf_user_profile', ['user_id' => $on->user_id, 'location' => 'Seedertown']);
+		$this->assertDatabaseHas('xf_user_privacy', ['user_id' => $on->user_id, 'allow_view_profile' => 'none']);
+		$this->assertDatabaseHas('xf_user_option', ['user_id' => $off->user_id, 'receive_admin_email' => 0]);
+	}
+
+	/**
+	 * Whatever the forum gives a member who registers, a seeded member gets too.
+	 */
+	public function test_a_member_starts_with_the_forums_registration_defaults()
+	{
+		$this->recordInto('test-defaults');
+		$defaults = \XF::options()->registrationDefaults;
+
+		$this->setOption('registrationDefaults', ['receive_admin_email' => true] + $defaults);
+		$this->assertTrue(UserFactory::new()->create()->Option->receive_admin_email);
+
+		$this->setOption('registrationDefaults', ['receive_admin_email' => false] + $defaults);
+		$this->assertFalse(UserFactory::new()->create()->Option->receive_admin_email);
+	}
+
+	public function test_a_member_can_have_no_email_address()
+	{
+		$this->recordInto('test-no-email');
+
+		$user = UserFactory::new()->withoutEmail()->create();
+
+		$this->assertDatabaseHas('xf_user', ['user_id' => $user->user_id, 'email' => '']);
+		$this->assertNotSame('', UserFactory::new()->create()->email, 'the state must not leak to other members');
+	}
+
+	public function test_secondary_groups_may_be_given_as_one_id_or_a_list()
+	{
+		$this->recordInto('test-groups');
+
+		$one = UserFactory::new()->create(['secondary_group_ids' => 3]);
+		$two = UserFactory::new()->create(['secondary_group_ids' => [3, 4]]);
+
+		$this->assertSame([3], $one->secondary_group_ids);
+		$this->assertSame([3, 4], $two->secondary_group_ids);
+		$this->assertDatabaseCount('xf_user_group_relation', 3, ['user_id' => $two->user_id]);
+	}
+
 	/**
 	 * The forum decides what a member may be called, and its limits differ from one to the next.
 	 */

@@ -67,6 +67,31 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Default` | everything below | all of theirs |
 | `User` | members | `users` (20) |
 
+### Members
+
+`Hampel\Seeder\Factory\UserFactory` builds a member with the forum's own registration defaults,
+an address at a reserved domain, and the run's shared password.
+
+```php
+UserFactory::new()
+	->count(200)
+	->sequence(['user_state' => 'valid'], ['user_state' => 'valid'], ['user_state' => 'email_bounce'])
+	->state([
+		'secondary_group_ids' => [5, 6],
+		'Option.receive_admin_email' => true,
+	])
+	->create();
+```
+
+| to get | write |
+|---|---|
+| a column on the member | `state(['user_group_id' => 5])`, `['is_moderator' => true]`, `['register_date' => ...]` |
+| a preference, profile or privacy setting | `state(['Option.receive_admin_email' => true])`, `'Profile.location'`, `'Privacy.allow_view_profile'` |
+| awaiting approval, or unconfirmed | `->moderated()`, `->unconfirmed()` |
+| no email address at all | `->withoutEmail()` |
+
+`is_moderator` sets the flag only: it creates no moderator record and grants no permissions.
+
 ### Your own seeders and factories
 
 **Any add-on can ship seeders for its own content.** Put a class in the add-on's `Seed` directory
@@ -128,6 +153,9 @@ class ThingFactory extends AbstractFactory
 | `make()` | build without saving |
 | `create()` | build, save and record |
 | `raw()` | the attributes only |
+
+A key written `Relation.column` sets a column on a related entity, which is created if need be and
+saved with the main one.
 
 `create()` records the entity for `seeder:clean`, switches its webhooks off, and saves it with
 XenForo's clock moved to the date `clockFor()` returns. Override `store()` where saving takes more

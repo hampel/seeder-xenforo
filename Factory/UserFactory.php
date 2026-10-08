@@ -9,7 +9,9 @@ use XF\Service\User\DeleteCleanUpService;
  * A member: the user row with its option, profile, privacy and authentication rows.
  *
  * Written through the entity, not XenForo's registration service, which sends confirmation and
- * welcome mail. Every member gets the run's one password and an address at a reserved domain.
+ * welcome mail. The entities apply the forum's registration defaults themselves, so a seeded member
+ * starts with the same preferences as one who registered. Vary them with `Option.`, `Profile.` and
+ * `Privacy.` keys: `state(['Option.receive_admin_email' => true])`. Every member gets the run's one password and an address at a reserved domain.
  */
 class UserFactory extends AbstractFactory
 {
@@ -72,6 +74,16 @@ class UserFactory extends AbstractFactory
 		return $this->state(['user_state' => 'email_confirm']);
 	}
 
+	/**
+	 * Has no email address at all - as a member imported from elsewhere may not.
+	 *
+	 * @return static
+	 */
+	public function withoutEmail()
+	{
+		return $this->state(['email' => '']);
+	}
+
 	public static function describe(Entity $entity): array
 	{
 		return ['username' => $entity->username, 'email' => $entity->email];
@@ -112,7 +124,21 @@ class UserFactory extends AbstractFactory
 	protected function newEntity(array $attributes): Entity
 	{
 		$user = \XF::repository(UserRepository::class)->setupBaseUser();
-		$user->bulkSet($attributes);
+
+		// XenForo takes an empty address only from an administrator, and has to be told so before
+		// the address is set
+		if (($attributes['email'] ?? null) === '')
+		{
+			$user->setOption('admin_edit', true);
+		}
+
+		// one group is the natural thing to write, and the entity refuses anything but a list
+		if (isset($attributes['secondary_group_ids']) && !is_array($attributes['secondary_group_ids']))
+		{
+			$attributes['secondary_group_ids'] = [(int) $attributes['secondary_group_ids']];
+		}
+
+		$this->fill($user, $attributes);
 
 		[$scheme, $data] = self::hash($this->context()->password);
 		$user->Auth->bulkSet(['scheme_class' => $scheme, 'data' => $data]);

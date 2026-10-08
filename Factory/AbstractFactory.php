@@ -53,6 +53,7 @@ abstract class AbstractFactory
 	/**
 	 * The default attributes. A value may be a closure, which is given the other attributes and
 	 * returns the value, or another factory, which is created and replaced by its entity's id.
+	 * A key written `Relation.column` sets a column on a related entity - see fill().
 	 */
 	abstract public function definition();
 
@@ -260,9 +261,32 @@ abstract class AbstractFactory
 	protected function newEntity(array $attributes): Entity
 	{
 		$entity = \XF::em()->create($this->entity);
-		$entity->bulkSet($attributes);
+		$this->fill($entity, $attributes);
 
 		return $entity;
+	}
+
+	/**
+	 * Set the attributes on the entity. A key written `Relation.column` is set on that related
+	 * entity instead - `Option.receive_admin_email` on a member - which is created if need be and
+	 * saved along with this one.
+	 */
+	protected function fill(Entity $entity, array $attributes): void
+	{
+		$own = [];
+		foreach ($attributes AS $key => $value)
+		{
+			if (strpos($key, '.') === false)
+			{
+				$own[$key] = $value;
+				continue;
+			}
+
+			[$relation, $column] = explode('.', $key, 2);
+			$entity->getRelationOrDefault($relation)->set($column, $value);
+		}
+
+		$entity->bulkSet($own);
 	}
 
 	protected function store(Entity $entity): void
