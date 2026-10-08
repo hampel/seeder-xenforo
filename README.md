@@ -68,7 +68,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (3, the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `Sample` | a little of everything above; what `seeder:validate` seeds and removes | |
 

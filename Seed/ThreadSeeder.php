@@ -20,7 +20,8 @@ use Hampel\Seeder\Factory\UserFactory;
  *     authors   how many members to create as authors (5)
  *     prefix    1 to create a thread prefix and give it to some threads, 0 for none (1)
  *     reactions the most reactions a post gets, from the authors; each gets between none and
- *               this many, and never more than there are other authors to give them (3)
+ *               this many, and never more than there are other authors to give them. 0 for
+ *               none (0)
  *     states    1 to add threads and replies that are awaiting approval or soft-deleted, about
  *               one in six of each; 0 for everything visible (0)
  *
@@ -66,7 +67,7 @@ class ThreadSeeder extends AbstractSeeder
 
 		// a member cannot react to their own post, so each post has one fewer to draw on than
 		// there are authors; past that the factory would make new members to do the reacting
-		$reactions = min($this->count('reactions', 3), max(0, count($authors) - 1));
+		$reactions = min($this->count('reactions', 0), max(0, count($authors) - 1));
 		if ($reactions)
 		{
 			$replies = $replies->has(ReactionFactory::new()->count([0, $reactions]));

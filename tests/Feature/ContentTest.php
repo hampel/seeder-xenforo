@@ -359,6 +359,7 @@ class ContentTest extends TestCase
 			$this->assertCount(8, $created['XF:Thread']);
 			$this->assertCount(1, $created['XF:ThreadPrefix']);
 			$this->assertArrayNotHasKey('XF:Node', $created, 'the forum given was used; none was made');
+			$this->assertArrayNotHasKey('XF:ReactionContent', $created, 'reactions are only made when asked for');
 			$this->assertSame([$node->node_id], array_values(array_unique(array_column($created['XF:Thread'], 'node_id'))));
 			$this->assertSame(['id', 'title', 'node_id', 'user_id', 'first_post_id'], array_keys($created['XF:Thread'][0]));
 
