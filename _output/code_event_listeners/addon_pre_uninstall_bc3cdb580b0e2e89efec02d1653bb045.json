@@ -1,0 +1,9 @@
+{
+    "event_id": "addon_pre_uninstall",
+    "execute_order": 10,
+    "callback_class": "Hampel\\Seeder\\Listener",
+    "callback_method": "addonPreUninstall",
+    "active": true,
+    "hint": "Hampel/Seeder",
+    "description": "Refuse to uninstall while seeded content is still recorded"
+}

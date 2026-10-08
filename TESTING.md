@@ -18,7 +18,10 @@ needs a person.
   No columns on core tables.
 - **Entity deletion** — `seeder:clean` deletes recorded entities of any type through the entity
   system, so every add-on's delete behaviour for that type runs.
-- No class extensions, code event listeners, template modifications or options.
+- **Code event listener** — `addon_pre_uninstall`, hinted to this add-on, refuses the uninstall
+  while a batch is recorded. XenForo marks the add-on as processing before it fires the event, so
+  the listener takes that mark back before it throws.
+- No class extensions, template modifications or options.
 
 ## Fragile points
 
@@ -61,6 +64,10 @@ and a summary on separate streams, and on a failing seeder exits 1 with its work
 
 **Those tests fake the job queue**, so they do not prove the drain. See *Needs a human*.
 
+For uninstalling: the listener is registered for this add-on only, refuses while a batch exists
+without leaving the add-on marked as processing, and allows it once nothing is recorded;
+`seeder:forget` discards records and leaves content.
+
 `FrameworkHalfTest` fails if anything in the framework half references the add-on half.
 
 ## Needs a human
@@ -71,5 +78,6 @@ and a summary on separate streams, and on a failing seeder exits 1 with its work
   run `seeder:run -p users=20`, then `seeder:clean --force`, and count again. Nothing but another
   add-on's own logging should differ, and `xf_job` should be where it started.
 - The commands have run on XenForo 2.3 only.
-- **Uninstall has not been run.** `uninstallStep1()` drops the record table; a forum uninstalled
-  with batches still recorded keeps the content and loses the means to remove it.
+- **An uninstall that goes through has not been run** — only the refusal has, from the command
+  line. `uninstallStep1()` drops the record table. The admin control panel's uninstall takes the
+  same path to the listener but has not been clicked.

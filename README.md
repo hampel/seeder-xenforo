@@ -170,6 +170,7 @@ php cmd.php seeder:config       # whether seeding is allowed, and the settings i
 php cmd.php seeder:validate     # whether this forum can be seeded, and whether that is safe
 php cmd.php seeder:list         # the batches of seeded content on this forum
 php cmd.php seeder:clean [batch]   # remove one batch, or every batch
+php cmd.php seeder:forget [batch]  # keep the content, discard the record of it
 ```
 
 `seeder:list` and `seeder:clean` take `--json`.
@@ -191,6 +192,20 @@ could not be removed stays recorded, so the command can be run again.
 
 1 always means a check failed. This is not the monitoring-plugin numbering, where 1 is a warning
 and 2 is critical.
+
+### Uninstalling
+
+**The add-on refuses to uninstall while any batch is recorded.** Uninstalling drops the records,
+and the seeded content would then stay on the forum with nothing left that knows which it is. The
+refusal says what to run first:
+
+| to | run |
+|---|---|
+| delete the seeded content | `php cmd.php seeder:clean` |
+| keep the content as the forum's own | `php cmd.php seeder:forget` |
+
+`seeder:forget` deletes nothing but the records, so it runs with seeding switched off. Content it
+forgets can never be cleaned.
 
 ## Mail
 
