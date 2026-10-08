@@ -37,9 +37,19 @@ it along.
 
 ## Nothing a seeded entity does may leave the forum
 
-No mail, alerts, push notifications or webhooks. Do not use a creator service's
-`sendNotifications()`, do not use `User\RegistrationService`, switch the `XF:Webhook` behaviour
-off on every entity a factory saves, and take email addresses from Faker's `safeEmail()` only.
+No mail, alerts, push notifications, webhooks or moderator log. Do not call a creator service's
+`sendNotifications()`, do not use `User\RegistrationService`, and take email addresses from
+reserved domains only. `AbstractFactory::silence()` switches the `XF:Webhook` behaviour and the
+`log_moderator` option off; a factory that overrides `remove()` must call it.
+
+**Never generate a bare web address in a message.** XenForo turns one into a link preview and
+queues a job that fetches it. Generated links carry link text and point at `example.com`.
+
+## Dates on posts are forced in after validation
+
+XenForo's thread creator and replier stamp `time()` during `validate()`, and validation readies the
+save. So `ThreadFactory` and `PostFactory` validate first and then set the dates with `forceSet`.
+Setting them earlier is silently overwritten; setting them later without `forceSet` throws.
 
 ## Composer
 
@@ -68,6 +78,8 @@ early** — after which every later write in the test is permanent:
   test has only this add-on loaded, so it throws on the first entity another add-on extends. Fake
   the queue with `fakesJobs()` in any test that creates or removes content.
 - **cleaning every batch.** Always name the batch.
+- **attachments write real files**, which a rollback does not remove. A test that attaches must
+  clean its batch in a `finally`.
 - anything else that calls `rollbackAll()` or `commit()`.
 
 The framework reports it (*This test's transaction did not survive*). Treat that message as

@@ -7,8 +7,8 @@ use XF\Mvc\Entity\Entity;
 
 /**
  * Builds one kind of content, in the manner of a Laravel model factory: definition() gives the
- * defaults, state() and sequence() vary them, count() asks for several, make() builds without
- * saving and create() saves.
+ * defaults, state() and sequence() vary them, count() asks for several, recycle(), for() and has()
+ * relate one kind to another, make() builds without saving and create() saves.
  *
  * Unlike a Laravel factory, this builds a content unit rather than a table row - a member is four
  * tables, a thread is a thread and its first post - so a subclass may override newEntity() and
@@ -24,8 +24,11 @@ abstract class AbstractFactory
 	/** @var string the entity's short name, such as XF:User */
 	protected $entity;
 
-	/** @var int|null */
+	/** @var int|int[]|null a number, or a [fewest, most] range drawn from each time */
 	protected $count;
+
+	/** @var array [shortName => Entity[]] existing entities to use where a factory would be created */
+	protected $recycled = [];
 
 	/** @var array arrays, or closures given the attributes so far and returning an array */
 	protected $states = [];
@@ -93,14 +96,72 @@ abstract class AbstractFactory
 	}
 
 	/**
+	 * @param int|int[]|null $count how many to build, or a [fewest, most] range - drawn afresh each
+	 *                              time, so each parent in has() gets its own number of children
+	 *
 	 * @return static
 	 */
-	public function count(?int $count)
+	public function count($count)
 	{
+		if (is_array($count) && (count($count) !== 2 || $count[0] > $count[1]))
+		{
+			throw new \InvalidArgumentException('A count range is [fewest, most]');
+		}
+
 		$factory = clone $this;
 		$factory->count = $count;
 
 		return $factory;
+	}
+
+	/**
+	 * Use these existing entities wherever this factory, or one it creates, would otherwise create
+	 * one of the same kind - authors drawn from a pool of members, say. One is picked at random
+	 * each time.
+	 *
+	 * @param Entity|iterable $entities
+	 *
+	 * @return static
+	 */
+	public function recycle($entities)
+	{
+		$factory = clone $this;
+		foreach ($entities instanceof Entity ? [$entities] : $entities AS $entity)
+		{
+			$factory->recycled[$entity->structure()->shortName][] = $entity;
+		}
+
+		return $factory;
+	}
+
+	/**
+	 * Make everything built belong to this one entity - every thread in this forum.
+	 *
+	 * @return static
+	 */
+	public function for(Entity $entity)
+	{
+		$factory = clone $this;
+		$factory->recycled[$entity->structure()->shortName] = [$entity];
+
+		return $factory;
+	}
+
+	/**
+	 * After each entity is created, create these belonging to it - replies for each thread. The
+	 * child factory inherits whatever this one was given to recycle.
+	 *
+	 * @return static
+	 */
+	public function has(self $children)
+	{
+		return $this->afterCreating(function (Entity $parent, self $factory) use ($children)
+		{
+			$children = clone $children;
+			$children->recycled += $factory->recycled;
+
+			$children->for($parent)->create();
+		});
 	}
 
 	/**
@@ -152,7 +213,7 @@ abstract class AbstractFactory
 
 			if ($value instanceof self)
 			{
-				$attributes[$key] = $value->create()->getEntityId();
+				$attributes[$key] = $this->related($value)->getEntityId();
 			}
 		}
 
@@ -198,7 +259,7 @@ abstract class AbstractFactory
 	}
 
 	/**
-	 * Nothing a seeded entity does may leave the forum.
+	 * Nothing a seeded entity does may leave the forum, or be logged as someone's action.
 	 */
 	public static function silence(Entity $entity): void
 	{
@@ -206,6 +267,31 @@ abstract class AbstractFactory
 		{
 			$entity->getBehavior('XF:Webhook')->setOption('enabled', false);
 		}
+
+		// and nothing it does is a moderator's action: creating or removing seeded content must
+		// not write the moderator log
+		if (array_key_exists('log_moderator', $entity->structure()->options))
+		{
+			$entity->setOption('log_moderator', false);
+		}
+	}
+
+	/**
+	 * The entity to use where the definition names another factory: one of the recycled ones if
+	 * there are any of that kind, otherwise a new one - which inherits the recycled entities too.
+	 */
+	protected function related(self $factory): Entity
+	{
+		$pool = $this->recycled[$factory->entity] ?? [];
+		if ($pool)
+		{
+			return $pool[mt_rand(0, count($pool) - 1)];
+		}
+
+		$factory = clone $factory;
+		$factory->recycled += $this->recycled;
+
+		return $factory->count(null)->create();
 	}
 
 	protected function context(): Context
@@ -220,8 +306,10 @@ abstract class AbstractFactory
 			return $this->buildOne($state, $persist);
 		}
 
+		$count = is_array($this->count) ? mt_rand($this->count[0], $this->count[1]) : $this->count;
+
 		$entities = [];
-		for ($i = 0; $i < $this->count; $i++)
+		for ($i = 0; $i < $count; $i++)
 		{
 			$entities[] = $this->buildOne($state, $persist);
 		}
@@ -235,7 +323,7 @@ abstract class AbstractFactory
 
 		foreach ($this->afterMaking AS $callback)
 		{
-			$callback($entity);
+			$callback($entity, $this);
 		}
 
 		if (!$persist)
@@ -252,7 +340,7 @@ abstract class AbstractFactory
 
 		foreach ($this->afterCreating AS $callback)
 		{
-			$callback($entity);
+			$callback($entity, $this);
 		}
 
 		return $entity;

@@ -5,8 +5,9 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
-**Early development.** It creates members, and removes them again. Forums, threads and posts are
-not built yet.
+**Early development.** It creates members, forums, threads with replies, thread prefixes and image
+attachments, and removes them again. Reactions, conversations, polls and profile posts are not
+built yet.
 
 ## Requirements
 
@@ -36,11 +37,12 @@ Everything is set in `src/config.php`, under `$config['hampelSeeder']`.
 ## Usage
 
 ```bash
-php cmd.php seeder:run -p users=50 --span=6m
+php cmd.php seeder:run -p users=50 -p threads=100 --span=6m
 ```
 
-That creates 50 members registered across the last six months, and prints what it made as JSON —
-each member's id, name and address, and the one password they all share. A summary for a person
+That creates 50 members, two forums and 100 threads with replies, dated across the last six months,
+and prints what it made as JSON — every id, each member's name and address, and the one password
+they all share. A summary for a person
 goes to standard error, so the JSON can be piped:
 
 ```bash
@@ -64,8 +66,17 @@ has still recorded what it made, exits 1, and says how to remove it.
 
 | seeder | creates | parameters |
 |---|---|---|
-| `Default` | everything below | all of theirs |
+| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none) |
+
+**The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
+list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
+first post meets the range of BB code.
+
+```bash
+php cmd.php seeder:run Thread -p threads=12 -p forum=2
+```
 
 ### Members
 
@@ -91,6 +102,34 @@ UserFactory::new()
 | no email address at all | `->withoutEmail()` |
 
 `is_moderator` sets the flag only: it creates no moderator record and grants no permissions.
+
+### Forums, threads and replies
+
+```php
+$forum = ForumFactory::new()->create(['title' => 'Announcements']);
+
+ThreadFactory::new()
+	->count(50)
+	->for($forum)                                   // every thread in this forum
+	->recycle($members)                             // authors drawn from these members
+	->has(PostFactory::new()->count([0, 8]))        // each with up to eight replies
+	->create();
+```
+
+| factory | builds | states |
+|---|---|---|
+| `ForumFactory` | a forum; the entity returned is its node | |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)` |
+| `PostFactory` | a reply | `withQuote()`, `withAttachment(n)` |
+| `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |
+
+The `with...()` states add up: `->withQuote()->withList()` gives a first post with both. Set
+`message` to supply the BB code yourself, and `post_date` to fix the date.
+
+**Threads and replies are written through XenForo's own thread creator and replier**, so a message
+is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no
+moderator log is written. Replies are dated after the post they follow and never before their
+author joined. Attachments are real PNG images. Links and images point at `example.com`.
 
 ### Your own seeders and factories
 
@@ -148,7 +187,10 @@ class ThingFactory extends AbstractFactory
 
 | method | |
 |---|---|
-| `new()`, `state()`, `sequence()`, `count()` | configure; each returns a changed copy |
+| `new()`, `state()`, `sequence()`, `count()` | configure; each returns a changed copy. `count([2, 9])` draws a number in that range each time |
+| `recycle($entities)` | use these wherever the definition names a factory of the same kind, picking one at random |
+| `for($entity)` | make everything built belong to this one |
+| `has($factory)` | after each is created, create these belonging to it |
 | `afterMaking()`, `afterCreating()` | callbacks given the entity |
 | `make()` | build without saving |
 | `create()` | build, save and record |
@@ -206,6 +248,15 @@ refusal says what to run first:
 
 `seeder:forget` deletes nothing but the records, so it runs with seeding switched off. Content it
 forgets can never be cleaned.
+
+## Limits
+
+- **Seeded content shows as active today.** XenForo's content activity log, which feeds trending
+  content, is dated the day the content was created whatever date the content carries.
+- **Daily statistics are not touched.** Backdated content does not appear in the statistics graph
+  unless statistics are rebuilt, and if they are rebuilt while seeded content exists, cleaning
+  does not take it back out. Rebuild again after cleaning.
+- **Seeding and cleaning both take about a second per fifty posts.**
 
 ## Mail
 

@@ -1,0 +1,130 @@
+<?php namespace Hampel\Seeder\Factory;
+
+use Hampel\Seeder\Factory\Concerns\WritesPosts;
+use XF\Mvc\Entity\Entity;
+use XF\Service\Thread\ReplierService;
+
+/**
+ * A reply to a thread, written through XenForo's own replier and dated after the thread's last
+ * post - so replies made one after another come out in order. Its notifications are never sent.
+ *
+ * Besides the post's columns, the attributes are message, message_parts and attachments, as for a
+ * thread.
+ */
+class PostFactory extends AbstractFactory
+{
+	use WritesPosts;
+
+	protected $entity = 'XF:Post';
+
+	public function definition()
+	{
+		$context = $this->context();
+
+		return [
+			'thread_id' => ThreadFactory::new(),
+			'user_id' => UserFactory::new(),
+			'message_parts' => [],
+			'attachments' => 0,
+			'message' => function (array $attributes) use ($context)
+			{
+				return $context->faker->bbCodeMessage($attributes['message_parts'] ?: ['short']);
+			},
+			'post_date' => function (array $attributes) use ($context)
+			{
+				$thread = \XF::em()->find('XF:Thread', $attributes['thread_id']);
+				$author = \XF::em()->find('XF:User', $attributes['user_id']);
+
+				// after the post it follows, and not before its author had joined
+				return $context->timeline->after(max(
+					$thread ? $thread->last_post_date : $context->timeline->start(),
+					$author ? $author->register_date : 0
+				));
+			},
+		];
+	}
+
+	/** @return static */
+	public function withQuote() { return $this->state(['message_parts' => ['short', 'quote']]); }
+
+	/**
+	 * @return static
+	 */
+	public function withAttachment(int $images = 1)
+	{
+		return $this->state(['attachments' => $images]);
+	}
+
+	public static function describe(Entity $entity): array
+	{
+		return ['thread_id' => $entity->thread_id, 'user_id' => $entity->user_id];
+	}
+
+	public static function remove(Entity $entity): void
+	{
+		self::removeWithAttachments($entity, [$entity->post_id]);
+	}
+
+	protected function newEntity(array $attributes): Entity
+	{
+		$thread = \XF::em()->find('XF:Thread', $attributes['thread_id']);
+		if (!$thread)
+		{
+			throw new \InvalidArgumentException("A reply needs a thread: there is no thread {$attributes['thread_id']}");
+		}
+		$author = $this->author($attributes['user_id']);
+
+		$replier = \XF::asVisitor($author, function () use ($thread, $attributes)
+		{
+			$replier = \XF::service(ReplierService::class, $thread);
+			$replier->setIsAutomated();
+			$replier->setMessage($attributes['message']);
+
+			return $replier;
+		});
+
+		$post = $replier->getPost();
+		$own = array_diff_key($attributes, array_flip(
+			['thread_id', 'user_id', 'message', 'message_parts', 'attachments', 'post_date']
+		));
+		$this->fill($post, $own);
+
+		$this->pending($post, [
+			'service' => $replier,
+			'author' => $author,
+			'date' => (int) $attributes['post_date'],
+			'message' => $attributes['message'],
+			'attachments' => (int) $attributes['attachments'],
+		]);
+
+		return $post;
+	}
+
+	protected function store(Entity $entity): void
+	{
+		$pending = $this->pending($entity);
+		$replier = $pending['service'];
+
+		\XF::asVisitor($pending['author'], function () use ($replier, $pending)
+		{
+			$message = $this->attach($replier, $pending);
+			if ($message !== null)
+			{
+				$replier->setMessage($message);
+			}
+
+			$this->assertValid($replier);
+
+			// validation stamps the real time and readies the save, so the date the reply is meant
+			// to have is forced in after it
+			$replier->getPost()->set('post_date', $pending['date'], ['forceSet' => true]);
+
+			$replier->save();
+		});
+	}
+
+	protected function clockFor(Entity $entity): ?int
+	{
+		return $this->pending($entity)['date'];
+	}
+}

@@ -12,6 +12,10 @@ needs a person.
 - **Members** — `seeder:run` writes `xf_user` and its option, profile, privacy, authentication
   and group-relation rows through the entity, with XenForo's clock moved to each member's
   registration date. Removal runs XenForo's own delete clean-up service inline.
+- **Forums, threads, replies, prefixes, attachments** — forums and prefixes through their
+  entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
+  with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
+  files in `internal_data`. Removal deletes the entity, then any attachment files left unused.
 - **The job queue** — run and clean both run the jobs they queued before returning, and rebuild
   the board statistics cache.
 - **Schema** — one table, `xf_hampel_seeder_record`, created on install and dropped on uninstall.
@@ -28,6 +32,14 @@ needs a person.
 - **The mail transport option holds credentials.** `seeder:config` prints its type only.
 - **Faker falls back to `en_US` silently**, provider by provider, for a locale it does not know.
   `seeder:validate` warns when a locale has no providers at all.
+- **Post dates.** XenForo's services stamp the real time during validation; the factories force
+  the content's date in afterwards. A XenForo release that changes that flow breaks backdating
+  quietly: content would all be dated now.
+- **Deleting content is moderator-logged by default**, and other add-ons hook that log. Seeded
+  entities have it switched off.
+- **A failed delete leaves a transaction open.** Each removal runs in its own and is unwound to
+  where it started, reading the adapter's savepoint count by reflection.
+- **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
 - **Faker reseeds at random when a generator is destroyed**, which would end a seeded run's
@@ -62,6 +74,14 @@ forum's length limit; no mail is sent and webhooks are off; cleaning members res
 counts; `seeder:run` refuses with seeding off, on bad input and on a batch that exists, prints JSON
 and a summary on separate streams, and on a failing seeder exits 1 with its work recorded.
 
+For content: a thread is a thread and its first post, dated as asked, with forum and member
+counters right; replies are in date order and never precede their author; `recycle()`, `for()` and
+`has()` create nothing beyond what they were given; the `with...()` states add up and stay on
+reserved domains with no bare address; a prefix has its phrase and forum association; an attachment
+is a real PNG and its file is gone after cleaning; a seeded forum cleans back to its starting
+counts across eighteen tables with no alert, mail, watch, IP or moderator log row; a removal that
+fails mid-transaction is undone and the rest still happen.
+
 **Those tests fake the job queue**, so they do not prove the drain. See *Needs a human*.
 
 For uninstalling: the listener is registered for this add-on only, refuses while a batch exists
@@ -75,7 +95,7 @@ without leaving the add-on marked as processing, and allows it once nothing is r
 - **After building a release, unzip it and confirm `vendor/fakerphp/` is inside** and that
   `CLAUDE.md`, `TESTING.md` and `PROPOSAL-seeder.md` are not.
 - **The round trip on a real forum, with the queue live.** Count the rows in every `xf_` table,
-  run `seeder:run -p users=20`, then `seeder:clean --force`, and count again. Nothing but another
+  run `seeder:run -p users=20 -p threads=50`, then `seeder:clean <batch> --force`, and count again. Nothing but another
   add-on's own logging should differ, and `xf_job` should be where it started.
 - The commands have run on XenForo 2.3 only.
 - **An uninstall that goes through has not been run** — only the refusal has, from the command

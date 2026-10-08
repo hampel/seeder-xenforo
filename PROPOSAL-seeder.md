@@ -290,11 +290,13 @@ Each phase ends with something that runs.
 4. **A first consumer in another add-on.** The mechanism exists; what is untested is whether it
    is a usable harness, and the case that tests it is an add-on with its own tables. That factory
    is written in the other add-on, by its own session.
-5. **The no-trace test** (below), which every later phase must keep passing.
+5. **The no-trace test** (below), which every later phase must keep passing. *Not automated yet:
+   run by hand after each phase, and as a table list inside the test suite.*
 6. **Forums, threads, posts and `Timeline`.** `has`, `for`, `recycle`. `DefaultSeeder` and
-   `--span`.
-7. **The rest, each as its own factory:** reactions, conversations, profile posts, attachments
-   (real image bytes with a real extension), polls, bans and warnings, then XFRM and XFMG.
+   `--span`. *Done 2026-10-08, with thread prefixes and image attachments brought forward from
+   phase 7 because the first consumer needed them.*
+7. **The rest, each as its own factory:** reactions, conversations, profile posts, polls, bans
+   and warnings, then XFRM and XFMG.
 
 ### The no-trace test is the acceptance test
 
@@ -321,19 +323,16 @@ seeded.
 
 ## Not verified
 
-- **That moving `\XF::$time` is sufficient for every dated side effect.** Verified: the property is
-  public and static, and the news feed behaviour dates from `post_date`. Not verified: every
-  repository that stamps a row. The no-trace test does not catch a wrong date, so phase 6 needs a
-  check that reads the dates back.
-- **Whether an add-on's feature tests write to the real database.** If they do, a factory called
-  from a test suite on an install that outlives the run leaves untracked content unless it records.
-  This bears on the package question above.
-- **Thread and forum last-post data with posts created out of date order.** `Thread::postAdded()`
-  only advances `last_post_date` when the new post is later, which is right if posts are created
-  oldest first. Factories will create in date order; a test should pin it.
-- **Speed with content.** Members are measured: 500 created in 10 seconds and removed in 32, on
-  2026-10-08. Removal is the slow half, since each member runs XenForo's own clean-up service and
-  a search job. Threads and posts are not measured yet.
+- **That moving `\XF::$time` is sufficient for every dated side effect.** It is not, and two
+  exceptions are known. XenForo's thread creator and replier stamp `time()`, the real clock, during
+  validation, so the factories force the dates in afterwards. And the content activity log, which
+  feeds trending content, is dated the day the content was seeded whatever its own date - so a
+  freshly seeded forum looks busy today. News feed rows do take the content's date.
+- **Daily statistics.** `xf_stats_daily` is written by a daily cron for the day before, so
+  backdated content never enters it unless someone rebuilds statistics while it exists. Clean does
+  not touch that table; the delete-then-rebuild step above is not built.
+- **Speed, beyond this.** Measured on 2026-10-08: 500 members in 10 seconds; 30 members, 3
+  forums, 150 threads and 927 replies in 19 seconds, and cleaned in 19. Nothing larger has run.
 - **Faker's `replace` entries on XenForo 2.2**, whose bundled versions were not read.
 
 ## Found while building
@@ -345,6 +344,20 @@ seeded.
 - **A forum's own rules decide what a member may be called.** The development install caps names
   at 25 characters where XenForo's default is 50. The member factory asks the entity whether a
   name is acceptable instead of copying the rules.
+- **XenForo's post services stamp the real time.** `CreatorService::finalSetup()` and the
+  replier's both call `time()`, not `\XF::$time`, and validation readies the save - so a date has
+  to be forced in after `validate()` with `forceSet`, or the entity refuses it.
+- **Deleting content from the command line writes the moderator log**, and anything listening
+  to that log runs - on the development install, another add-on's hook threw. Seeded entities
+  have `log_moderator` switched off for both creation and removal.
+- **An entity that throws part-way through its delete leaves its transaction open.** Every later
+  removal in the run was then reported as done and discarded when the command ended. Each removal
+  now runs in its own transaction and a failure unwinds to exactly where it started.
+- **Entities made earlier in a process remember relations as first read.** A prefix made before
+  its title phrase believes it has none and leaves the phrase behind on delete. Clean clears the
+  entity cache before it starts.
+- **A bare web address in a post is turned into a preview, which XenForo fetches.** Generated
+  links always carry link text, and point at reserved domains.
 - **A job run inside a test runs with only this add-on loaded**, throws on the first entity
   another add-on extends, and the job manager answers a throw with `rollbackAll()` — which ends
   the test's transaction and makes its later writes permanent. Tests that create content fake the
