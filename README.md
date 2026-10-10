@@ -6,8 +6,8 @@ who need a forum with members and dated content to test against, and it is not f
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
 **Early development.** It creates members, forums, threads with replies, reactions, thread prefixes,
-image attachments, content awaiting approval or soft-deleted, warning definitions and warnings,
-and removes them again. Conversations, polls and profile posts are not built yet.
+image attachments, content awaiting approval or soft-deleted, warning definitions, warnings and
+API keys, and removes them again. Conversations, polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -57,7 +57,9 @@ php cmd.php seeder:run -p users=50 2>/dev/null | jq '.created["XF:User"][0]'
 | `--batch=NAME` | name the batch; the date and time if omitted. A name already in use is refused |
 | `--no-record` | do not record what is created — it can then never be cleaned |
 
-Everything a run creates is recorded under its batch, as it is created. A run that fails part-way
+Everything a run creates is recorded under its batch, as it is created. From PHP,
+`\XF::repository('Hampel\Seeder:Record')->getRecords($batch, 'XF:User')` lists what a batch
+holds, in the order it was made. A run that fails part-way
 has still recorded what it made, exits 1, and says how to remove it.
 
 ### Seeders
@@ -70,6 +72,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `User` | members | `users` (20) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
+| `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Sample` | a little of everything above; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
@@ -183,6 +186,25 @@ none, it is written out as a custom warning. To seed definitions alone:
 ```bash
 php cmd.php seeder:run Warning -p warnings=0 -p definitions=12
 ```
+
+### API keys
+
+```php
+$key = ApiKeyFactory::new()->for($member)->scopes(['thread:read', 'user:read'])->create();
+
+$key->api_key;      // the value to send as XF-Api-Key
+```
+
+| factory | builds | states |
+|---|---|---|
+| `ApiKeyFactory` | a key that acts as a member, with every scope | `for($member)`, `guest()`, `superUser()`, `inactive()`, `scopes([...])`, `used()` |
+
+**A seeded key is a working credential.** A run prints each key's value, as it prints the members'
+password, because whatever is testing the API needs it. A super user key can do anything on the
+forum it was made on, so the seeder makes none unless asked.
+
+XenForo emails every super administrator when a key is created through the control panel. A
+seeded key is written without that.
 
 ### Your own seeders and factories
 

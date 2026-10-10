@@ -21,6 +21,8 @@ needs a person.
   content is silenced first. Published to the news feed by hand, with the date corrected.
 - **Content states** — moderated content is inserted in that state; deleted content is posted and
   then soft-deleted through `softDelete()` once its replies and reactions exist.
+- **API keys** — through the `ApiKey` entity, not XenForo's key manager service, which emails
+  every super administrator. A run prints key values: they are live credentials on that forum.
 - **Warnings** — definitions through their entity and three phrases; warnings through the
   `Warning` entity, not XenForo's warn service, which queues a webhook and can send a conversation.
   Saving a warning saves the post it is about and the member it was given to, so both are
@@ -109,6 +111,12 @@ never the author and never repeat; a moderated thread and reply are in the appro
 counted; a deleted thread was posted, replied to, reacted to and then deleted, its log dated after
 its last reply, its reactions no longer counted, and no moderator log written; attachments carry
 their post's date; all of it cleans back to the starting counts.
+
+For API keys: a key acts as a member by default and is made after the member was; `for()` names
+a member even when others are recycled; super user, guest and inactive kinds; scopes are written
+as rows that go when the key is cleaned, and an unknown scope is refused; no mail is sent. On a
+real forum the seeded keys were sent to the API: member, guest and super user keys were accepted
+and the inactive one refused.
 
 For warnings: a definition has its three phrases and cleaning removes them; a warning on a post
 has the right member, moderator, title, points and dates, marks the post, raises the member's

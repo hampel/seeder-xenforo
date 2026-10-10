@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Repository;
 
+use Hampel\Seeder\Record\EntityKey;
 use Hampel\Seeder\Record\TableRecorder;
 use XF\Mvc\Entity\Repository;
 
@@ -16,6 +17,36 @@ class RecordRepository extends Repository
 			'SELECT 1 FROM ' . TableRecorder::TABLE . ' WHERE batch = ? LIMIT 1',
 			$batch
 		);
+	}
+
+	/**
+	 * What a batch recorded, in the order it was created.
+	 *
+	 * @param string|null $entity only this kind, by short name such as XF:User
+	 *
+	 * @return array [['entity' => string, 'id' => string|array, 'factory' => string|null], ...] -
+	 *               the id is an array, keyed by column, where the entity's key is compound
+	 */
+	public function getRecords(string $batch, ?string $entity = null): array
+	{
+		$rows = $this->db()->fetchAll(
+			'SELECT entity, entity_id, factory FROM ' . TableRecorder::TABLE . '
+				WHERE batch = ?' . ($entity === null ? '' : ' AND entity = ' . $this->db()->quote($entity)) . '
+				ORDER BY record_id',
+			$batch
+		);
+
+		$records = [];
+		foreach ($rows AS $row)
+		{
+			$records[] = [
+				'entity' => $row['entity'],
+				'id' => EntityKey::decode($row['entity_id']),
+				'factory' => $row['factory'],
+			];
+		}
+
+		return $records;
 	}
 
 	/**

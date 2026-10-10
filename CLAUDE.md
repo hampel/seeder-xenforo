@@ -46,7 +46,8 @@ the member too.
 
 **Prefer the entity to a XenForo service where the service does something outward.** The warn
 service and the reaction repository both queue a webhook and can alert, so warnings and reactions
-are written through their entities.
+are written through their entities. The API key manager service emails every super
+administrator, so keys are too.
 
 **Anything new the add-on learns to create goes into `Seed\SampleSeeder`**, which is what
 `seeder:validate` seeds and removes.
