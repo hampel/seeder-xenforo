@@ -297,7 +297,7 @@ Each phase ends with something that runs.
    phase 7 because the first consumer needed them.*
 7. **The rest, each as its own factory, as something needs it:** conversations, profile posts,
    polls and bans, then XFRM and XFMG. *Warnings, warning definitions, reactions, and moderated and soft-deleted content
-   done 2026-10-08; API keys 2026-10-11.*
+   done 2026-10-08; API keys and who is online 2026-10-11.*
 
 ### The no-trace test is the acceptance test
 
@@ -383,6 +383,10 @@ seeded.
 - **Content is deleted last.** Deleting a thread as it was stored meant its replies and reactions
   were added to an already-deleted thread. A `finish()` step now runs after everything `has()`
   created.
+- **A second way to create was needed.** Seventy thousand who-is-online rows, asked for to test
+  behaviour under a swarm of robots, could not be saved one entity at a time. `AbstractBulkFactory`
+  writes and records rows in multi-row statements and the cleaner removes them the same way:
+  75,000 rows in 11 seconds, cleaned in 6. It is confined to tables whose rows stand alone.
 - **XenForo's warn service always queues a webhook**, and can start a conversation with the
   member. Warnings are written through the entity instead, which is where the points, the mark on
   the post and the warning actions are applied anyway.

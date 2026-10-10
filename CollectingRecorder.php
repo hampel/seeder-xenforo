@@ -15,6 +15,9 @@ class CollectingRecorder implements Recorder
 	/** @var array [shortName => [description, ...]] */
 	protected $created = [];
 
+	/** @var array [shortName => int] rows written in bulk, which are counted and not listed */
+	protected $bulk = [];
+
 	public function __construct(Recorder $inner)
 	{
 		$this->inner = $inner;
@@ -33,12 +36,38 @@ class CollectingRecorder implements Recorder
 		$this->created[$entity->structure()->shortName][] = $description;
 	}
 
+	public function recordRows(string $entity, array $keys, ?string $factory = null): void
+	{
+		$this->inner->recordRows($entity, $keys, $factory);
+
+		$this->bulk[$entity] = ($this->bulk[$entity] ?? 0) + count($keys);
+	}
+
 	/**
-	 * @return array [shortName => [['id' => ..., ...], ...]] in the order things were created
+	 * @return array [shortName => [['id' => ..., ...], ...]] in the order things were created.
+	 *               Rows written in bulk are not here; see counts().
 	 */
 	public function created(): array
 	{
 		return $this->created;
+	}
+
+	/**
+	 * @return array [shortName => int] how many of each kind were created, bulk rows included
+	 */
+	public function counts(): array
+	{
+		$counts = [];
+		foreach ($this->created AS $entity => $list)
+		{
+			$counts[$entity] = count($list);
+		}
+		foreach ($this->bulk AS $entity => $count)
+		{
+			$counts[$entity] = ($counts[$entity] ?? 0) + $count;
+		}
+
+		return $counts;
 	}
 
 	/**

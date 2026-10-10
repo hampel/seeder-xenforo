@@ -21,6 +21,9 @@ needs a person.
   content is silenced first. Published to the news feed by hand, with the date corrected.
 - **Content states** — moderated content is inserted in that state; deleted content is posted and
   then soft-deleted through `softDelete()` once its replies and reactions exist.
+- **Who is online** — `xf_session_activity`, written in bulk with multi-row inserts and no entity.
+  Each row is recorded; removal is a multi-row delete by key. A row whose key is already in the
+  table is skipped and not recorded.
 - **API keys** — through the `ApiKey` entity, not XenForo's key manager service, which emails
   every super administrator. A run prints key values: they are live credentials on that forum.
 - **Warnings** — definitions through their entity and three phrases; warnings through the
@@ -52,6 +55,13 @@ needs a person.
   run, or a rebuild after cleaning writes a deleted forum's permission rows back.
 - **A failed delete leaves a transaction open.** Each removal runs in its own and is unwound to
   where it started, reading the adapter's savepoint count by reflection.
+- **A guest's who-is-online row is keyed by its address.** A seeded row at a real visitor's address
+  would replace theirs and then be deleted with the batch. Addresses come from reserved ranges,
+  and a key already present is left alone.
+- **Bulk rows skip everything an entity save does.** Right for a table whose rows stand alone and
+  wrong for anything else.
+- **A key that is not text** - a binary address - is stored base64-encoded inside the record's
+  JSON, since raw bytes cannot go into JSON.
 - **A column default of `\\XF::$time` is evaluated once per process**, when the entity's structure
   is first built. With the clock moved, that freezes the default at whatever moment the first
   entity of that kind happened to be saved - so a date left to its default is wrong for every one
@@ -111,6 +121,12 @@ never the author and never repeat; a moderated thread and reply are in the appro
 counted; a deleted thread was posted, replied to, reacted to and then deleted, its log dated after
 its last reply, its reactions no longer counted, and no moderator log written; attachments carry
 their post's date; all of it cleans back to the starting counts.
+
+For bulk rows: a binary key survives being recorded and fits the column; members, guests and robots
+are written in the numbers, networks and ranges asked for, with known robot names and view dates
+inside the online window; a share can be put in one network, given IPv6 addresses or made stale;
+a row already in the table is neither overwritten nor recorded nor cleaned; cleaning removes
+exactly what was written and reports rows XenForo already pruned.
 
 For API keys: a key acts as a member by default and is made after the member was; `for()` names
 a member even when others are recycled; super user, guest and inactive kinds; scopes are written

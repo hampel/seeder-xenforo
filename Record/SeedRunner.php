@@ -17,7 +17,9 @@ class SeedRunner
 	 * @param string $class a seeder's class name
 	 * @param string|null $batch the batch to record under, or null to record nothing
 	 *
-	 * @return array ['created' => [shortName => [...]], 'failure' => \Throwable|null, 'password' => string]
+	 * @return array ['created' => [shortName => [...]], 'counts' => [shortName => int],
+	 *               'failure' => \Throwable|null, 'password' => string] - counts includes rows written
+	 *               in bulk, which created does not list
 	 */
 	public function run(string $class, array $params, Timeline $timeline, ?int $seed, ?string $batch): array
 	{
@@ -43,6 +45,11 @@ class SeedRunner
 			$jobs->finish();
 		}
 
-		return ['created' => $recorder->created(), 'failure' => $failure, 'password' => $password];
+		return [
+			'created' => $recorder->created(),
+			'counts' => $recorder->counts(),
+			'failure' => $failure,
+			'password' => $password,
+		];
 	}
 }

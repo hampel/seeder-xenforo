@@ -52,4 +52,25 @@ class TableRecorder implements Recorder
 			'record_date' => time(),
 		], false, false, 'IGNORE');
 	}
+
+	public function recordRows(string $entity, array $keys, ?string $factory = null): void
+	{
+		$now = time();
+		$rows = [];
+		foreach ($keys AS $key)
+		{
+			$rows[] = [
+				'batch' => $this->batch,
+				'entity' => $entity,
+				'entity_id' => EntityKey::encode($key),
+				'factory' => $factory,
+				'record_date' => $now,
+			];
+		}
+
+		if ($rows)
+		{
+			\XF::db()->insertBulk(self::TABLE, $rows, false, false, 'IGNORE');
+		}
+	}
 }

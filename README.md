@@ -6,8 +6,8 @@ who need a forum with members and dated content to test against, and it is not f
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
 **Early development.** It creates members, forums, threads with replies, reactions, thread prefixes,
-image attachments, content awaiting approval or soft-deleted, warning definitions, warnings and
-API keys, and removes them again. Conversations, polls and profile posts are not built yet.
+image attachments, content awaiting approval or soft-deleted, warning definitions, warnings, API
+keys and who is online, and removes them again. Conversations, polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -73,7 +73,8 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
-| `Sample` | a little of everything above; what `seeder:validate` seeds and removes | |
+| `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
+| `Sample` | a little of everything above, bar who is online; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -206,6 +207,41 @@ forum it was made on, so the seeder makes none unless asked.
 XenForo emails every super administrator when a key is created through the control panel. A
 seeded key is written without that.
 
+### Who is online
+
+```bash
+php cmd.php seeder:run Online -p guests=5000 -p robots=70000 -p networks=30 -p top=80
+```
+
+That is a swarm: 70,000 robots from 30 networks with 80% of them in one, in about ten seconds.
+
+```php
+SessionActivityFactory::new()
+	->members($users)
+	->guests(5000, 40)            // across 40 networks, evenly
+	->robots(60000, 12, 0.8)      // across 12 networks, 80% of them in one
+	->ipv6(0.05)
+	->stale(0.1)
+	->create();
+```
+
+**These rows are written in bulk**, straight into the table, because saving tens of thousands of
+entities one at a time would take minutes. They are still recorded and still removed by
+`seeder:clean`. A run counts them in its JSON and does not list them.
+
+**Addresses come from ranges nobody is issued**, because a guest's row is keyed by its address and
+a seeded row must never stand where a real visitor's would: guests from the lower half of
+`10.0.0.0/8`, robots from the upper half, members from `198.18.0.0/15`, IPv6 from `2001:db8::/32`.
+A network here is a /16. On a public forum none of those can be a real visitor; on a development
+machine, where visitors arrive from private addresses, `10.0.0.0/8` can be — so a row already in
+the table is left exactly as it is and not recorded.
+
+**XenForo deletes these rows itself**, an hour after their view date. `seeder:clean` reports any
+that have already gone.
+
+Robot names come from XenForo's own list, the well-known crawlers most often. What each visitor is
+doing is spread across real controllers, with a few errors.
+
 ### Your own seeders and factories
 
 **Any add-on can ship seeders for its own content.** Put a class in the add-on's `Seed` directory
@@ -270,6 +306,10 @@ class ThingFactory extends AbstractFactory
 | `make()` | build without saving |
 | `create()` | build, save and record |
 | `raw()` | the attributes only |
+
+**Writing rows in bulk.** For a table whose rows stand alone, extend `AbstractBulkFactory` and
+yield the rows from `rows()`, each as the database stores it. It is the wrong tool for content: no
+entity is saved, so no counter, search index or other add-on's bookkeeping is updated.
 
 A key written `Relation.column` sets a column on a related entity, which is created if need be and
 saved with the main one.

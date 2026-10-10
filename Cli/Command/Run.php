@@ -16,8 +16,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Runs a seeder, recording everything it creates under one batch so seeder:clean can remove it.
  *
- * What was created is printed as JSON on standard output - ids, and for members the name, address
- * and the run's password - and a summary for a person on standard error, so
+ * What was created is printed as JSON on standard output - a count of each kind, then ids, and for
+ * members the name, address and the run's password; rows written in bulk are counted only - and a summary for a person on standard error, so
  * `seeder:run 2>/dev/null | jq` works.
  *
  * Exit code: 0 when the seeder finished, 1 if it was refused or threw. A run that throws has still
@@ -77,6 +77,7 @@ class Run extends Command
 
 		$result = (new SeedRunner())->run($class, $params, $timeline, $seed, $batch);
 		$created = $result['created'];
+		$counts = $result['counts'];
 		$failure = $result['failure'];
 		$password = $result['password'];
 
@@ -86,14 +87,15 @@ class Run extends Command
 			'seed' => $seed,
 			'password' => $password,
 			'complete' => $failure === null,
+			'counts' => $counts,
 			'created' => $created,
 		], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-		foreach ($created AS $entity => $list)
+		foreach ($counts AS $entity => $count)
 		{
-			$errors->writeln("  created  {$entity} x " . count($list));
+			$errors->writeln("  created  {$entity} x {$count}");
 		}
-		if (!$created)
+		if (!$counts)
 		{
 			$errors->writeln('  nothing was created');
 		}
@@ -102,7 +104,7 @@ class Run extends Command
 		{
 			\XF::logException($failure, false, 'Seeder: seeder:run - ');
 			$errors->writeln('<error>The seeder failed: ' . get_class($failure) . ': ' . $failure->getMessage() . '</error>');
-			if ($batch !== null && $created)
+			if ($batch !== null && $counts)
 			{
 				$errors->writeln("What it made before failing is recorded. Remove it with: seeder:clean {$batch}");
 			}

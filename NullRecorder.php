@@ -11,4 +11,8 @@ class NullRecorder implements Recorder
 	public function record(Entity $entity, ?string $factory = null): void
 	{
 	}
+
+	public function recordRows(string $entity, array $keys, ?string $factory = null): void
+	{
+	}
 }

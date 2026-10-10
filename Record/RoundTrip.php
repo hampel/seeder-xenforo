@@ -20,7 +20,7 @@ class RoundTrip
 	public const VOLATILE = [
 		'xf_admin_log', 'xf_attachment_view', 'xf_captcha_log', 'xf_data_registry', 'xf_error_log',
 		'xf_flood_check', 'xf_image_proxy', 'xf_job', 'xf_link_proxy', 'xf_login_attempt', 'xf_search',
-		'xf_session', 'xf_session_activity', 'xf_session_admin', 'xf_thread_view',
+		'xf_session', 'xf_session_activity', 'xf_session_admin', 'xf_thread_view', 'xf_trending_result',
 	];
 
 	/**
@@ -54,15 +54,9 @@ class RoundTrip
 
 		[$leaks, $other] = self::compare($before, $after, array_keys((new MySql())->getTables()));
 
-		$created = [];
-		foreach ($seeded['created'] AS $entity => $list)
-		{
-			$created[$entity] = count($list);
-		}
-
 		return [
 			'batch' => $batch,
-			'created' => $created,
+			'created' => $seeded['counts'],
 			'seed_failure' => $seeded['failure']
 				? get_class($seeded['failure']) . ': ' . strtok($seeded['failure']->getMessage(), "\n") : null,
 			'removed' => array_sum($cleaned['removed']),

@@ -90,6 +90,19 @@ Setting them earlier is silently overwritten; setting them later without `forceS
   for p in l['packages']: print(p['name'], p.get('require',{}).get('php','-'))"
   ```
 
+## Two ways to create, and which to use
+
+| the table's rows | use |
+|---|---|
+| are content: saving one updates counters, an index, another add-on | `AbstractFactory`, one entity at a time |
+| stand alone, and there may be tens of thousands | `AbstractBulkFactory`, multi-row inserts |
+
+**Do not reach for the bulk path because something is slow.** It skips everything an entity save
+does, so content written through it leaves the forum inconsistent. Who is online is the model
+case: no dependents, no side effects, pruned by XenForo within the hour.
+
+A bulk factory never overwrites: a key already in the table is skipped and not recorded.
+
 ## Tests that create content
 
 **They run against the real database inside a transaction, and three things end that transaction

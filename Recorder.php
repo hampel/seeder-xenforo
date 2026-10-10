@@ -16,4 +16,13 @@ interface Recorder
 	 * @param string|null $factory the class of the factory that made it, if one did
 	 */
 	public function record(Entity $entity, ?string $factory = null): void;
+
+	/**
+	 * Told about rows that were written in bulk, without an entity each.
+	 *
+	 * @param string $entity the short name of the entity the rows belong to, such as XF:SessionActivity
+	 * @param array $keys one [column => value] primary key per row
+	 * @param string|null $factory the class of the bulk factory that wrote them
+	 */
+	public function recordRows(string $entity, array $keys, ?string $factory = null): void;
 }

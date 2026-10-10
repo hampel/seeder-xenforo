@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Record;
 
+use Hampel\Seeder\Factory\AbstractBulkFactory;
 use Hampel\Seeder\Factory\AbstractFactory;
 use XF\Db\AbstractAdapter;
 use XF\Mvc\Entity\Entity;
@@ -13,7 +14,7 @@ use XF\Mvc\Entity\Entity;
  */
 class Cleaner
 {
-	protected const CHUNK = 250;
+	protected const CHUNK = 500;
 
 	/**
 	 * @return array ['removed' => [shortName => int], 'missing' => [shortName => int],
@@ -46,10 +47,35 @@ class Cleaner
 				[$batch, $below]
 			);
 
+			// rows written in bulk are removed in bulk: a run of them is gathered until something
+			// that is an entity comes along, so that everything still goes in recorded order
+			$bulk = [];
 			foreach ($records AS $record)
 			{
 				$below = (int) $record['record_id'];
+
+				if ($this->isBulk($record))
+				{
+					if ($bulk && ($bulk[0]['factory'] !== $record['factory'] || $bulk[0]['entity'] !== $record['entity']))
+					{
+						$this->cleanBulk($bulk, $result);
+						$bulk = [];
+					}
+					$bulk[] = $record;
+					continue;
+				}
+
+				if ($bulk)
+				{
+					$this->cleanBulk($bulk, $result);
+					$bulk = [];
+				}
 				$this->cleanRecord($record, $result);
+			}
+
+			if ($bulk)
+			{
+				$this->cleanBulk($bulk, $result);
 			}
 		}
 		while ($records);
@@ -57,6 +83,64 @@ class Cleaner
 		$jobs->finish();
 
 		return $result;
+	}
+
+	protected function isBulk(array $record): bool
+	{
+		return $record['factory'] !== null && is_subclass_of($record['factory'], AbstractBulkFactory::class);
+	}
+
+	/**
+	 * Remove a run of rows one bulk factory wrote, and their records, together or not at all.
+	 *
+	 * @param array $records records sharing one factory and one entity
+	 */
+	protected function cleanBulk(array $records, array &$result): void
+	{
+		$entity = $records[0]['entity'];
+		$factory = $records[0]['factory'];
+		$db = \XF::db();
+		$depth = self::transactionDepth($db);
+
+		$db->beginTransaction();
+
+		try
+		{
+			$keys = [];
+			foreach ($records AS $record)
+			{
+				$keys[] = EntityKey::decode($record['entity_id']);
+			}
+
+			$removed = $factory::removeMany($entity, $keys);
+
+			$db->delete(TableRecorder::TABLE, 'record_id IN (' . $db->quote(array_column($records, 'record_id')) . ')');
+			$db->commit();
+		}
+		catch (\Throwable $e)
+		{
+			while (self::transactionDepth($db) > $depth)
+			{
+				$db->rollback();
+			}
+
+			$result['failed'][] = [
+				'entity' => $entity,
+				'id' => count($records) . ' rows',
+				'error' => get_class($e) . ': ' . strtok($e->getMessage(), "\n"),
+			];
+
+			return;
+		}
+
+		if ($removed)
+		{
+			$result['removed'][$entity] = ($result['removed'][$entity] ?? 0) + $removed;
+		}
+		if ($removed < count($records))
+		{
+			$result['missing'][$entity] = ($result['missing'][$entity] ?? 0) + count($records) - $removed;
+		}
 	}
 
 	protected function cleanRecord(array $record, array &$result): void
