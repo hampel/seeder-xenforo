@@ -16,6 +16,10 @@ use XF\Util\Ip;
 
 /**
  * Rows written in bulk - who is online - created for real inside a transaction.
+ *
+ * Kept small on purpose. Every page view on the forum writes to this table, so a test holding
+ * locks on thousands of its rows is one a real visitor can deadlock with - and MySQL answers a
+ * deadlock by ending the test's transaction, after which what it writes is permanent.
  */
 class BulkTest extends TestCase
 {
@@ -144,18 +148,15 @@ class BulkTest extends TestCase
 		$this->recordInto('test-online-collide');
 		$db = $this->app()->db();
 
-		// every address the factory could give a guest in this one network, bar a handful
+		// fifty visitors who were there first, at addresses the factory is about to be given
 		$real = [];
-		foreach (range(0, 65535) AS $host)
+		foreach (range(0, 49) AS $host)
 		{
-			$ip = pack('C4', 10, 0, $host >> 8, $host & 255);
+			$ip = pack('C4', 10, 0, 0, $host);
 			$real[] = ['user_id' => 0, 'unique_key' => $ip, 'ip' => $ip, 'view_date' => 1700000000,
 				'controller_name' => 'Real', 'controller_action' => 'Visitor', 'view_state' => 'valid', 'params' => '', 'robot_key' => ''];
 		}
-		foreach (array_chunk($real, 5000) AS $chunk)
-		{
-			$db->insertBulk(self::TABLE, $chunk);
-		}
+		$db->insertBulk(self::TABLE, $real);
 
 		$factory = new class extends SessionActivityFactory
 		{
@@ -173,11 +174,12 @@ class BulkTest extends TestCase
 
 		$this->assertSame(1, $written, 'only the address nobody had');
 		$this->assertDatabaseCount('xf_hampel_seeder_record', 1, ['batch' => 'test-online-collide']);
-		$this->assertSame(65536, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE controller_name = 'Real' AND view_date = 1700000000"));
+		$this->assertSame(50, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE controller_name = 'Real' AND view_date = 1700000000"));
 
-		(new Cleaner())->clean('test-online-collide');
+		$result = (new Cleaner())->clean('test-online-collide');
 
-		$this->assertSame(65536, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE controller_name = 'Real'"), 'cleaning took none of them');
+		$this->assertSame([], $result['failed']);
+		$this->assertSame(50, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE controller_name = 'Real'"), 'cleaning took none of them');
 	}
 
 	public function test_cleaning_removes_exactly_the_rows_written_and_reports_those_already_gone()
@@ -212,22 +214,31 @@ class BulkTest extends TestCase
 		$db = $this->app()->db();
 		$mine = "robot_key <> '' AND user_id = 0 AND ORD(SUBSTRING(ip, 1, 1)) = 10";
 
-		SessionActivityFactory::new()->robots(20000, 8)->create();
+		SessionActivityFactory::new()->robots(4000, 8)->create();
 
 		$counts = array_map('intval', $db->fetchPairs('SELECT robot_key, COUNT(*) c FROM ' . self::TABLE . " WHERE {$mine} GROUP BY 1 ORDER BY c DESC"));
 		$this->assertLessThanOrEqual(40, count($counts));
-		$this->assertGreaterThan(30, count($counts), 'at this size every kind should turn up');
-		$this->assertGreaterThan(12000, array_sum(array_slice($counts, 0, 5)), 'the first five take about two in three');
+		$this->assertGreaterThan(25, count($counts), 'at this size nearly every kind should turn up');
+		$this->assertGreaterThan(2400, array_sum(array_slice($counts, 0, 5)), 'the first five take about two in three');
 		$this->assertSame('google', array_key_first($counts), 'the commonest crawler XenForo itself knows comes first');
 
-		(new Cleaner())->clean('test-online-robots');
-		$this->recordInto('test-online-robots-many');
+	}
 
-		SessionActivityFactory::new()->robots(20000, 8)->robotKinds(300)->create();
+	public function test_the_number_of_kinds_of_robot_can_be_set()
+	{
+		$this->recordInto('test-online-robot-kinds');
+		$db = $this->app()->db();
+		$mine = "robot_key <> '' AND user_id = 0 AND ORD(SUBSTRING(ip, 1, 1)) = 10";
+		$known = count($this->app()->data('XF:Robot')->getRobotList());
 
+		SessionActivityFactory::new()->robots(4000, 8)->robotKinds(3)->create();
+		$this->assertSame(3, (int) $db->fetchOne('SELECT COUNT(DISTINCT robot_key) FROM ' . self::TABLE . " WHERE {$mine}"));
+
+		// more than the forum knows is every one it knows
+		SessionActivityFactory::new()->robots(4000, 8)->robotKinds($known + 500)->create();
 		$kinds = (int) $db->fetchOne('SELECT COUNT(DISTINCT robot_key) FROM ' . self::TABLE . " WHERE {$mine}");
-		$this->assertGreaterThan(150, $kinds);
-		$this->assertLessThanOrEqual(300, $kinds);
+		$this->assertGreaterThan(40, $kinds);
+		$this->assertLessThanOrEqual($known, $kinds);
 
 		$this->expectException(\InvalidArgumentException::class);
 		SessionActivityFactory::new()->robotKinds(0);

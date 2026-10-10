@@ -118,6 +118,10 @@ early** — after which every later write in the test is permanent:
   transaction back, and the test carries on outside one. Another add-on's suite running against
   the same database at the same moment is enough. If a run fails on `DeadlockException`, check
   `pgrep -af phpunit` before believing anything else it reports, then look for what it left.
+- **a hot table.** Every page view writes `xf_session_activity`, so a test holding locks on
+  thousands of its rows can deadlock with a real visitor. `BulkTest` is kept small for that
+  reason. Assert that a clean's `failed` list is empty: the cleaner turns a failed removal into a
+  list entry and carries on, which in a test means carrying on outside the transaction.
 - **DDL.** `CREATE TABLE` commits. No test here creates or drops a table.
 - anything else that calls `rollbackAll()` or `commit()`.
 
