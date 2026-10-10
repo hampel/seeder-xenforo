@@ -10,6 +10,7 @@ use XF\Util\Ip;
  *         ->members($users)
  *         ->guests(5000, 40)             // across 40 networks, evenly
  *         ->robots(60000, 12, 0.8)       // across 12 networks, 80% of them in one
+ *         ->robotKinds(40)               // drawn from 40 different robots, a few of them most
  *         ->ipv6(0.05)
  *         ->stale(0.1)
  *         ->create();
@@ -48,8 +49,18 @@ class SessionActivityFactory extends AbstractBulkFactory
 		['XF\Pub\Controller\ErrorController', 'DispatchError', 3, 'error'],
 	];
 
-	private const COMMON_ROBOTS = ['googlebot', 'bing', 'gptbot', 'ahrefs', 'semrushbot', 'bytespider', 'amazonbot',
-		'yandexbot', 'applebot', 'petalbot', 'facebookextern', 'mj12', 'dotbot', 'duckduckbot', 'baidu'];
+	/** how steeply the commonest robots outnumber the rest */
+	private const SKEW = 1.4;
+
+	/**
+	 * The crawlers a forum sees most, commonest first. Names differ between XenForo's own list
+	 * and the longer lists other add-ons supply, so both spellings are here; only those the forum
+	 * knows are used.
+	 */
+	private const COMMON_ROBOTS = ['googlebot', 'google', 'bing', 'gptbot', 'openai', 'ahrefs', 'semrushbot', 'semrush',
+		'bytespider', 'bytedance', 'amazonbot', 'yandexbot', 'yandex', 'applebot', 'petalbot', 'petalsearch',
+		'facebookextern', 'meta-externalagent', 'anthropic', 'perplexity', 'mj12', 'dotbot', 'duckduckbot',
+		'duckduckgo', 'baidu'];
 
 	/** @var int[] */
 	protected $members = [];
@@ -59,6 +70,9 @@ class SessionActivityFactory extends AbstractBulkFactory
 
 	/** @var array [count, networks, share in the largest] */
 	protected $robots = [0, 1, 0.0];
+
+	/** @var int how many different robots the robots are drawn from */
+	protected $robotKinds = 40;
 
 	/** @var float */
 	protected $ipv6 = 0.0;
@@ -113,6 +127,28 @@ class SessionActivityFactory extends AbstractBulkFactory
 	}
 
 	/**
+	 * How many different robots the robot rows are drawn from. On a real forum a handful of
+	 * crawlers account for nearly all of them, so the default is few, and whatever the number the
+	 * first few take most of the rows.
+	 *
+	 * @param int $kinds 1 or more; no more than XenForo's robot list holds are used
+	 *
+	 * @return static
+	 */
+	public function robotKinds(int $kinds)
+	{
+		if ($kinds < 1)
+		{
+			throw new \InvalidArgumentException('There must be at least one kind of robot');
+		}
+
+		$factory = clone $this;
+		$factory->robotKinds = $kinds;
+
+		return $factory;
+	}
+
+	/**
 	 * @param float $share the share of guests and robots with an IPv6 address, 0 to 1
 	 *
 	 * @return static
@@ -153,7 +189,7 @@ class SessionActivityFactory extends AbstractBulkFactory
 			yield $this->row(0, $ip, $ip, '');
 		}
 
-		$robotKeys = self::robotKeys();
+		$robotKeys = array_slice(self::robotKeys(), 0, $this->robotKinds);
 		foreach ($this->addresses($this->robots, 128) AS $ip)
 		{
 			yield $this->row(0, $ip, $ip, $robotKeys ? self::skewed($robotKeys) : 'unknown');
@@ -300,8 +336,8 @@ class SessionActivityFactory extends AbstractBulkFactory
 	}
 
 	/**
-	 * One of the items, the earlier ones far more often than the later: the second half as often
-	 * as the first, the third a third as often.
+	 * One of the items, the earlier ones far more often than the later, falling away steeply: of
+	 * forty, the first five are drawn about two times in three.
 	 */
 	private static function skewed(array $items)
 	{
@@ -313,7 +349,7 @@ class SessionActivityFactory extends AbstractBulkFactory
 			$total = 0.0;
 			for ($rank = 1; $rank <= $n; $rank++)
 			{
-				$total += 1 / $rank;
+				$total += 1 / $rank ** self::SKEW;
 			}
 			$totals[$n] = $total;
 		}
@@ -322,7 +358,7 @@ class SessionActivityFactory extends AbstractBulkFactory
 		$sum = 0.0;
 		foreach ($items AS $index => $item)
 		{
-			$sum += 1 / ($index + 1);
+			$sum += 1 / ($index + 1) ** self::SKEW;
 			if ($sum >= $target)
 			{
 				return $item;

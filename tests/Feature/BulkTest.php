@@ -201,6 +201,38 @@ class BulkTest extends TestCase
 		$this->assertDatabaseCount('xf_hampel_seeder_record', 0, ['batch' => 'test-online-clean']);
 	}
 
+	/**
+	 * On a real forum a handful of crawlers account for nearly every robot online. The first
+	 * version drew from all 1,355 XenForo knows with a gentle skew, and at 70,000 rows used
+	 * nearly every one of them.
+	 */
+	public function test_robots_are_few_kinds_with_a_handful_taking_most_and_the_number_can_be_set()
+	{
+		$this->recordInto('test-online-robots');
+		$db = $this->app()->db();
+		$mine = "robot_key <> '' AND user_id = 0 AND ORD(SUBSTRING(ip, 1, 1)) = 10";
+
+		SessionActivityFactory::new()->robots(20000, 8)->create();
+
+		$counts = array_map('intval', $db->fetchPairs('SELECT robot_key, COUNT(*) c FROM ' . self::TABLE . " WHERE {$mine} GROUP BY 1 ORDER BY c DESC"));
+		$this->assertLessThanOrEqual(40, count($counts));
+		$this->assertGreaterThan(30, count($counts), 'at this size every kind should turn up');
+		$this->assertGreaterThan(12000, array_sum(array_slice($counts, 0, 5)), 'the first five take about two in three');
+		$this->assertSame('google', array_key_first($counts), 'the commonest crawler XenForo itself knows comes first');
+
+		(new Cleaner())->clean('test-online-robots');
+		$this->recordInto('test-online-robots-many');
+
+		SessionActivityFactory::new()->robots(20000, 8)->robotKinds(300)->create();
+
+		$kinds = (int) $db->fetchOne('SELECT COUNT(DISTINCT robot_key) FROM ' . self::TABLE . " WHERE {$mine}");
+		$this->assertGreaterThan(150, $kinds);
+		$this->assertLessThanOrEqual(300, $kinds);
+
+		$this->expectException(\InvalidArgumentException::class);
+		SessionActivityFactory::new()->robotKinds(0);
+	}
+
 	public function test_bad_shapes_are_refused()
 	{
 		foreach ([
