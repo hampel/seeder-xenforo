@@ -11,6 +11,7 @@ use XF\Util\Ip;
  *         ->guests(5000, 40)             // across 40 networks, evenly
  *         ->robots(60000, 12, 0.8)       // across 12 networks, 80% of them in one
  *         ->robotKinds(40)               // drawn from 40 different robots, a few of them most
+ *         ->actions(30)                  // doing 30 different things, most of them reading threads
  *         ->ipv6(0.05)
  *         ->stale(0.1)
  *         ->create();
@@ -34,7 +35,13 @@ class SessionActivityFactory extends AbstractBulkFactory
 	/** the most addresses asked of one /16, which holds 65,536 */
 	private const NETWORK_LIMIT = 60000;
 
-	/** what visitors are doing, and how often: [controller, action, weight, view state] */
+	/** how many of the pairs below a run draws from unless told otherwise: the first eleven */
+	public const DEFAULT_ACTIONS = 11;
+
+	/**
+	 * What visitors are doing, and how often: [controller, action, weight, view state]. Every
+	 * pair is a real controller and action. A run draws from the first few, commonest first.
+	 */
 	private const ACTIVITY = [
 		['XF\Pub\Controller\ThreadController', 'Index', 40, 'valid'],
 		['XF\Pub\Controller\ForumController', 'Forum', 14, 'valid'],
@@ -47,6 +54,40 @@ class SessionActivityFactory extends AbstractBulkFactory
 		['XF\Pub\Controller\LoginController', 'Index', 3, 'valid'],
 		['XF\Pub\Controller\RegisterController', 'Index', 2, 'valid'],
 		['XF\Pub\Controller\ErrorController', 'DispatchError', 3, 'error'],
+		['XF\\Pub\\Controller\\PostController', 'Index', 3, 'valid'],
+		['XF\\Pub\\Controller\\ThreadController', 'Unread', 3, 'valid'],
+		['XF\\Pub\\Controller\\ThreadController', 'Latest', 3, 'valid'],
+		['XF\\Pub\\Controller\\WhatsNewPostController', 'Index', 2, 'valid'],
+		['XF\\Pub\\Controller\\SearchController', 'Index', 2, 'valid'],
+		['XF\\Pub\\Controller\\MemberController', 'Index', 2, 'valid'],
+		['XF\\Pub\\Controller\\MemberController', 'RecentContent', 2, 'valid'],
+		['XF\\Pub\\Controller\\MemberController', 'About', 2, 'valid'],
+		['XF\\Pub\\Controller\\ThreadController', 'Reply', 2, 'valid'],
+		['XF\\Pub\\Controller\\ForumController', 'PostThread', 2, 'valid'],
+		['XF\\Pub\\Controller\\TagController', 'Tag', 2, 'valid'],
+		['XF\\Pub\\Controller\\TagController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\HelpController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\MiscController', 'Contact', 1, 'valid'],
+		['XF\\Pub\\Controller\\OnlineController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\AccountController', 'AccountDetails', 1, 'valid'],
+		['XF\\Pub\\Controller\\AccountController', 'Preferences', 1, 'valid'],
+		['XF\\Pub\\Controller\\AccountController', 'Alerts', 1, 'valid'],
+		['XF\\Pub\\Controller\\ConversationController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\ConversationController', 'View', 1, 'valid'],
+		['XF\\Pub\\Controller\\WatchedController', 'Threads', 1, 'valid'],
+		['XF\\Pub\\Controller\\CategoryController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\PageController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\LostPasswordController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\PostController', 'Reactions', 1, 'valid'],
+		['XF\\Pub\\Controller\\MemberController', 'Trophies', 1, 'valid'],
+		['XF\\Pub\\Controller\\ThreadController', 'Preview', 1, 'valid'],
+		['XF\\Pub\\Controller\\EditorController', 'Dialog', 1, 'valid'],
+		['XF\\Pub\\Controller\\MiscController', 'Style', 1, 'valid'],
+		['XF\\Pub\\Controller\\ProfilePostController', 'Index', 1, 'valid'],
+		['XF\\Pub\\Controller\\SearchController', 'Member', 1, 'valid'],
+		['XF\\Pub\\Controller\\ForumController', 'MarkRead', 1, 'valid'],
+		['XF\\Pub\\Controller\\FindThreadsController', 'Unanswered', 1, 'valid'],
+		['XF\\Pub\\Controller\\ReportController', 'Index', 1, 'valid'],
 	];
 
 	/** how steeply the commonest robots outnumber the rest */
@@ -73,6 +114,9 @@ class SessionActivityFactory extends AbstractBulkFactory
 
 	/** @var int how many different robots the robots are drawn from */
 	protected $robotKinds = 40;
+
+	/** @var int how many different controller and action pairs visitors are spread across */
+	protected $actions = self::DEFAULT_ACTIONS;
 
 	/** @var float */
 	protected $ipv6 = 0.0;
@@ -149,6 +193,32 @@ class SessionActivityFactory extends AbstractBulkFactory
 	}
 
 	/**
+	 * How many different things visitors are doing: controller and action pairs, the commonest
+	 * first, so however many there are most visitors are reading threads.
+	 *
+	 * @param int $kinds 1 to the number of pairs this factory knows, which actionsKnown() gives
+	 *
+	 * @return static
+	 */
+	public function actions(int $kinds)
+	{
+		if ($kinds < 1 || $kinds > count(self::ACTIVITY))
+		{
+			throw new \InvalidArgumentException('Actions must be between 1 and ' . count(self::ACTIVITY));
+		}
+
+		$factory = clone $this;
+		$factory->actions = $kinds;
+
+		return $factory;
+	}
+
+	public static function actionsKnown(): int
+	{
+		return count(self::ACTIVITY);
+	}
+
+	/**
 	 * @param float $share the share of guests and robots with an IPv6 address, 0 to 1
 	 *
 	 * @return static
@@ -205,7 +275,7 @@ class SessionActivityFactory extends AbstractBulkFactory
 			? mt_rand($online + 1, $kept - 61)
 			: mt_rand(0, $online - 1);
 
-		[$controller, $action, , $state] = self::weighted(self::ACTIVITY, 2);
+		[$controller, $action, , $state] = self::weighted(array_slice(self::ACTIVITY, 0, $this->actions), 2);
 
 		return [
 			'user_id' => $userId,

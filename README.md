@@ -73,7 +73,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
-| `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
+| `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
 | `Sample` | a little of everything above, bar who is online; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
@@ -242,7 +242,9 @@ that have already gone.
 Robots are drawn from forty of the names XenForo knows, the well-known crawlers first and a handful
 of them taking most of the rows, as on a real forum. `-p robot_kinds=N`, or `->robotKinds(N)`,
 changes how many. What each visitor is
-doing is spread across real controllers, with a few errors.
+doing is spread across real controller and action pairs, reading threads commonest, with a few
+errors: eleven pairs by default and up to 45 with `-p actions=N` or `->actions(N)` — for testing
+something that reports only the top few.
 
 ### Your own seeders and factories
 

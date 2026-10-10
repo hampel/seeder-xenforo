@@ -244,6 +244,57 @@ class BulkTest extends TestCase
 		SessionActivityFactory::new()->robotKinds(0);
 	}
 
+	/**
+	 * Something that reports the top few actions needs more kinds of action than it reports.
+	 */
+	public function test_the_number_of_different_actions_can_be_set_and_every_one_is_real()
+	{
+		$this->recordInto('test-online-actions');
+		$db = $this->app()->db();
+		$mine = "user_id = 0 AND robot_key = '' AND ORD(SUBSTRING(ip, 1, 1)) = 10";
+		$pairs = function () use ($db, $mine)
+		{
+			return $db->fetchAll('SELECT controller_name, controller_action, view_state, COUNT(*) c FROM ' . self::TABLE . " WHERE {$mine} GROUP BY 1, 2, 3 ORDER BY c DESC");
+		};
+
+		$this->assertGreaterThan(25, SessionActivityFactory::actionsKnown(), 'there have to be more than a top-25 report shows');
+
+		SessionActivityFactory::new()->guests(1500, 4)->create();
+		$default = $pairs();
+		$this->assertCount(11, $default, 'eleven unless told otherwise');
+		$this->assertSame(['XF\\Pub\\Controller\\ThreadController', 'Index'], [$default[0]['controller_name'], $default[0]['controller_action']]);
+
+		$db->delete(self::TABLE, $mine);
+		SessionActivityFactory::new()->guests(4000, 4)->actions(SessionActivityFactory::actionsKnown())->create();
+		$all = $pairs();
+
+		$this->assertCount(SessionActivityFactory::actionsKnown(), $all);
+		$this->assertSame('Index', $all[0]['controller_action'], 'reading threads is still commonest');
+		foreach ($all AS $pair)
+		{
+			$this->assertTrue(class_exists($pair['controller_name']), $pair['controller_name']);
+			$this->assertTrue(method_exists($pair['controller_name'], 'action' . $pair['controller_action']), $pair['controller_name'] . '::' . $pair['controller_action']);
+		}
+		$this->assertEquals(['error' => 1, 'valid' => SessionActivityFactory::actionsKnown() - 1], array_count_values(array_column($all, 'view_state')));
+
+		$db->delete(self::TABLE, $mine);
+		SessionActivityFactory::new()->guests(300, 2)->actions(1)->create();
+		$this->assertCount(1, $pairs());
+
+		foreach ([0, SessionActivityFactory::actionsKnown() + 1] AS $bad)
+		{
+			try
+			{
+				SessionActivityFactory::new()->actions($bad);
+				$this->fail("{$bad} actions was accepted");
+			}
+			catch (\InvalidArgumentException $e)
+			{
+				$this->addToAssertionCount(1);
+			}
+		}
+	}
+
 	public function test_bad_shapes_are_refused()
 	{
 		foreach ([
