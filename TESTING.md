@@ -22,6 +22,12 @@ needs a person.
 - **Conversations** — through XenForo's `Conversation\CreatorService` and `ReplierService`, with
   notifications never sent. XenForo has no delete for a single message, so the factory removes one
   and corrects the conversation's counts and last message itself.
+- **Custom user fields** — the field through its entity, with its phrases; values through the
+  member's profile as an administrator sets them. XenForo keeps its list of fields for the life of
+  the process and rebuilds it at the end of the request, so the factory forces both.
+- **User upgrades** — records through their entities and groups through XenForo's group change
+  service; XenForo's upgrade service and repository only when hooks are asked for. A payment
+  profile, which XenForo never deletes, is removed by deleting its row.
 - **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
   alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
   content is silenced first. Published to the news feed by hand, with the date corrected.
@@ -91,6 +97,13 @@ needs a person.
 - **Some jobs are queued only when the request ends** (`\XF::runOnce()`), after a naive drain has
   finished. The drain releases them first; without that a conversation left its search re-index
   queued behind every run.
+- **XenForo quietly blanks a choice a field does not offer.** The member factory checks choices
+  itself for that reason.
+- **An upgrade held past its end is expired by XenForo's cron**, through the downgrade service,
+  which alerts the member and fires other add-ons' hooks. The factory refuses to create one.
+- **Hooks on upgrades are other add-ons' code.** With `hooks=1` their jobs are queued and the drain
+  runs them; what they do is theirs. The suite loads no other add-on, so it proves only that the
+  rows come out the same by either route.
 - **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
@@ -143,6 +156,13 @@ asked for; replies alternate authors among the participants and each is later th
 in the same second; nobody is alerted, mailed or has an address logged; cleaning restores the
 counts and the members' unread totals; removing one reply leaves the conversation pointing at the
 one before.
+
+For fields and upgrades: a field has its phrases and choices and is known to the forum at once;
+every kind of field takes a made-up value; an unknown field, an unknown choice and a rejected
+value are refused; values go with the member or the field. An upgrade is not for sale; one held
+ends in the future and puts the member in its groups, by either route; one run out has the dates
+given, by either route, and leaves no group change and no alert; both seeders clean back to their
+starting counts.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are
@@ -208,4 +228,6 @@ without leaving the add-on marked as processing, and allows it once nothing is r
   it is what found the permission-cache leak.
 - **That a seeded error log really does stay out of a chat channel.** Only the dates were checked,
   against the rule the poller on the development forum uses; the poller itself was not run.
+- **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
+  on the development forum the one such add-on has no API key, and its jobs would only fail.
 - The commands have run on XenForo 2.3 only.

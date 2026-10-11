@@ -49,6 +49,10 @@ service and the reaction repository both queue a webhook and can alert, so warni
 are written through their entities. The API key manager service emails every super
 administrator, so keys are too.
 
+**Where the only outward effect is another add-on's hook on a XenForo service, write through the
+entity by default and offer the service as an opt-in** that says what it means before it runs.
+User upgrades are the model: `withHooks()` and `hooks=1`.
+
 **Anything new the add-on learns to create goes into `Seed\SampleSeeder`**, which is what
 `seeder:validate` seeds and removes.
 

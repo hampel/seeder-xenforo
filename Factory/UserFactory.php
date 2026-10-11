@@ -84,9 +84,63 @@ class UserFactory extends AbstractFactory
 		return $this->state(['email' => '']);
 	}
 
+	/**
+	 * Values for custom user fields, as `[field id => value]`: text for a text field, a choice's
+	 * key for one with choices, a list of keys for one that takes several. Set as an administrator
+	 * would set them, so a field members cannot edit takes a value too. A field the forum does not
+	 * have, or a value the field would not accept, is refused.
+	 *
+	 * @return static
+	 */
+	public function withFields(array $fields)
+	{
+		return $this->state(function (array $attributes) use ($fields)
+		{
+			return ['fields' => $fields + ($attributes['fields'] ?? [])];
+		});
+	}
+
+	/**
+	 * A made-up value in every custom user field the forum has - or, with a share below 1, in
+	 * about that share of them, each member missing different ones. A field whose value the forum
+	 * checks with a pattern of its own is left empty.
+	 *
+	 * @return static
+	 */
+	public function withFieldValues(float $share = 1.0)
+	{
+		return $this->state(function (array $attributes) use ($share)
+		{
+			$fields = [];
+			foreach (\XF::app()->getCustomFields('users') AS $fieldId => $field)
+			{
+				if (mt_rand() / mt_getrandmax() >= $share)
+				{
+					continue;
+				}
+
+				$value = UserFieldFactory::valueFor($field, $this->context()->faker);
+				if ($value !== null)
+				{
+					$fields[$fieldId] = $value;
+				}
+			}
+
+			return ['fields' => ($attributes['fields'] ?? []) + $fields];
+		});
+	}
+
 	public static function describe(Entity $entity): array
 	{
-		return ['username' => $entity->username, 'email' => $entity->email];
+		$described = ['username' => $entity->username, 'email' => $entity->email];
+
+		$fields = $entity->Profile ? $entity->Profile->custom_fields->getFieldValues() : [];
+		if ($fields)
+		{
+			$described['fields'] = $fields;
+		}
+
+		return $described;
 	}
 
 	/**
@@ -138,7 +192,42 @@ class UserFactory extends AbstractFactory
 			$attributes['secondary_group_ids'] = [(int) $attributes['secondary_group_ids']];
 		}
 
+		$fields = $attributes['fields'] ?? [];
+		unset($attributes['fields']);
+
 		$this->fill($user, $attributes);
+
+		if ($fields)
+		{
+			$set = $user->Profile->custom_fields;
+			foreach ($fields AS $fieldId => $value)
+			{
+				if (!isset($set->getDefinitionSet()[$fieldId]))
+				{
+					throw new \InvalidArgumentException("This forum has no custom user field '{$fieldId}'");
+				}
+
+				// XenForo quietly drops a choice the field does not offer; a seeder that names one
+				// has made a mistake and should hear of it
+				$definition = $set->getDefinitionSet()[$fieldId];
+				if (in_array($definition['type_group'], ['single', 'multiple'], true))
+				{
+					$unknown = array_diff(array_map('strval', (array) $value), array_map('strval', array_keys($definition['field_choices'])));
+					if ($unknown)
+					{
+						throw new \InvalidArgumentException("A custom user field would not take its value: '{$fieldId}' has no choice '"
+							. implode("', '", $unknown) . "'");
+					}
+				}
+
+				$set->set($fieldId, $value, 'admin');
+			}
+			if ($user->Profile->hasErrors())
+			{
+				throw new \InvalidArgumentException('A custom user field would not take its value: '
+					. implode(' ', array_map('strval', $user->Profile->getErrors())));
+			}
+		}
 
 		[$scheme, $data] = self::hash($this->context()->password);
 		$user->Auth->bulkSet(['scheme_class' => $scheme, 'data' => $data]);

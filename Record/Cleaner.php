@@ -147,6 +147,16 @@ class Cleaner
 		}
 	}
 
+	/**
+	 * Whether a removal failed only because another connection held the rows: a deadlock, or
+	 * MySQL error 1205, a lock that was waited for and never came free.
+	 */
+	protected static function lostToAnother(\Throwable $e): bool
+	{
+		return $e instanceof DeadlockException
+			|| ($e instanceof \XF\Db\Exception && strpos($e->getMessage(), '[1205]') !== false);
+	}
+
 	protected function cleanRecord(array $record, array &$result, int $attempt = 1): void
 	{
 		$shortName = $record['entity'];
@@ -177,10 +187,10 @@ class Cleaner
 				$db->rollback();
 			}
 
-			// A deadlock is somebody else writing the same rows at the same moment, and MySQL
-			// has already undone this removal whole - so it can simply be tried again. Only where
+			// A deadlock, or a wait for a lock that ran out, is somebody else writing the same rows
+			// at the same moment, and this removal has been undone whole - so it can be tried again. Only where
 			// this was the outermost transaction: inside someone else's, the deadlock ended theirs.
-			if ($e instanceof DeadlockException && $depth === 0 && $attempt < self::ATTEMPTS)
+			if (self::lostToAnother($e) && $depth === 0 && $attempt < self::ATTEMPTS)
 			{
 				\XF::em()->clearEntityCache();
 				$this->cleanRecord($record, $result, $attempt + 1);

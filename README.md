@@ -6,9 +6,9 @@ who need a forum with members and dated content to test against, and it is not f
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
 **Early development.** It creates members, forums, threads with replies, tags, reactions, thread
-prefixes, image attachments, content awaiting approval or soft-deleted, conversations, warning
-definitions, warnings, API keys, who is online and server error log entries, and removes them
-again. Polls and profile posts are not built yet.
+prefixes, image attachments, content awaiting approval or soft-deleted, conversations, custom
+user fields with members' values, user upgrades held and run out, warning definitions, warnings,
+API keys, who is online and server error log entries, and removes them again. Polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -74,6 +74,8 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `User` | members | `users` (20) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
+| `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
+| `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
@@ -110,6 +112,7 @@ UserFactory::new()
 | a preference, profile or privacy setting | `state(['Option.receive_admin_email' => true])`, `'Profile.location'`, `'Privacy.allow_view_profile'` |
 | awaiting approval, or unconfirmed | `->moderated()`, `->unconfirmed()` |
 | no email address at all | `->withoutEmail()` |
+| values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
 
 `is_moderator` sets the flag only: it creates no moderator record and grants no permissions.
 
@@ -198,6 +201,69 @@ batch is cleaned. Members made by `UserFactory` have an address at a reserved do
 ```bash
 php cmd.php seeder:run Conversation -p conversations=5 -p messages=10
 ```
+
+### Custom user fields
+
+```php
+$field = UserFieldFactory::new()->choices(['Beginner', 'Expert'])->create(['field_id' => 'experience']);
+
+UserFactory::new()->withFields(['experience' => 'expert'])->create();
+UserFactory::new()->withFieldValues(0.8)->count(50)->create();
+```
+
+| factory | creates | states |
+|---|---|---|
+| `UserFieldFactory` | a custom user field, with its title, description and choice phrases | `type($type)`, `matching($form)`, `choices([...])`, `group($group)`, `required()`, `onRegistration()`, `onMessages()` |
+
+**The types are XenForo's eight**: `textbox`, `textarea`, `bbcode`, `select`, `radio`, `checkbox`,
+`multiselect` and `stars`. A date, a colour, a number, an email address or a URL is not a type but
+a text box that checks its value: `matching('date')`.
+
+**`withFields()` takes a choice's key, not its label**, and a list of keys for a field that takes
+several. `choices(['Dark blue'])` makes the key `dark_blue`. Values are set as an administrator
+sets them, so a field members cannot edit takes one too. A field the forum does not have, a
+choice the field does not offer and a value the field's check rejects are all refused.
+
+**`withFieldValues()` fills the forum's own fields as well as seeded ones.** A share below 1 leaves
+each member without some. A field checked by a pattern or callback of the forum's own is left
+empty, since a value cannot be made up for it.
+
+Removing a field removes every member's value for it, as XenForo does.
+
+### User upgrades
+
+```php
+$upgrade = UserUpgradeFactory::new()->lasting(1, 'year')->grantingGroups([5])->create();
+
+UserUpgradeActiveFactory::new()->for($member)->for($upgrade)->create();
+UserUpgradeExpiredFactory::new()->for($other)->for($upgrade)->create();
+```
+
+| factory | creates | states |
+|---|---|---|
+| `UserUpgradeFactory` | an upgrade, not offered for sale | `lasting(n, $unit)`, `permanent()`, `grantingGroups([...])` |
+| `UserUpgradeActiveFactory` | a member holding an upgrade now, in its groups | `cancelled()`, `withHooks()` |
+| `UserUpgradeExpiredFactory` | an upgrade a member held and no longer does | `withHooks()` |
+| `PaymentProfileFactory` | the payment profile an upgrade has to name; switched off | |
+
+**Nothing can be bought.** XenForo requires every upgrade to name a payment profile, so one is
+made: switched off, and pointing at an account at `example.com`. The upgrade itself has
+`can_purchase` off. No purchase request or payment log is written.
+
+**An upgrade still held always ends in the future**, or never. XenForo's own cron expires one that
+has run out and alerts the member, so the factory refuses to make one. An upgrade that has run out
+ended on its due date where that has passed, and otherwise at some moment before now. Set
+`start_date`, `end_date` and `original_end_date` to place one exactly.
+
+**By default no other add-on hears of it.** The records are written through their entities and the
+group change through XenForo's group change service, which is everything XenForo's upgrade service
+does except be the thing other add-ons extend. `withHooks()`, or `-p hooks=1`, goes through
+XenForo's upgrade service and upgrade repository instead, so an add-on that acts when a member is
+upgraded or an upgrade runs out acts for these too - **which can mean sending the member's details
+to another system.** The seeder says so before it starts. Either way the member is not alerted.
+
+XenForo does not delete payment profiles; a seeded one is removed by deleting its row, and is left
+and reported where anything still refers to it.
 
 ### Warnings
 
