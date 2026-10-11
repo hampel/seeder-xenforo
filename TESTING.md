@@ -131,6 +131,11 @@ needs a person.
   2026-10-11 as one stranded member.
 - **The passkey table's `aaguid` column is `NOT NULL`, 32 characters**, where the entity calls it
   nullable.
+- **XenForo 2.3.0 keeps an entity's cascaded saves after it is saved**; later releases clear them.
+  A thread made by the creator service then re-saved its first post on every later save, and a
+  reaction to that post threw. The factory clears the link after each save, by reflection. Found
+  on 2026-10-11 by running at the declared floor.
+- **XenForo 2.3.0's member clean-up does not remove passkeys.** The member factory does.
 - **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
@@ -278,4 +283,8 @@ without leaving the add-on marked as processing, and allows it once nothing is r
   against the rule the poller on the development forum uses; the poller itself was not run.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
+- **The declared floor, before a release that changes a factory.** A disposable forum at XenForo
+  2.3.0 on PHP 8.1, with the 2.3.0 Media Gallery and Resource Manager: lint the zip's PHP there,
+  then the same sequence as above. Last run on 2026-10-11 at 2.3.0 Patch 2 and PHP 8.1.34; it
+  found two defects that 2.3.12 and 2.3.13 do not show.
 - The commands have run on XenForo 2.3 only.
