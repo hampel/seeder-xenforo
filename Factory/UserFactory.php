@@ -27,6 +27,8 @@ class UserFactory extends AbstractFactory
 		'xf_session_activity' => 'user_id = ?',
 		'xf_user_alert' => 'user_id = ?',
 		'xf_change_log' => 'edit_user_id = ?',
+		// XenForo 2.3.0's clean-up does not know about passkeys; later releases remove these themselves
+		'xf_passkey' => 'user_id = ?',
 	];
 
 	/** @var array [password => [scheme class, data]] - hashing is slow, and every member shares one */
