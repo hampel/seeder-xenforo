@@ -20,6 +20,9 @@ class RoundTripTest extends TestCase
 		parent::setUp();
 
 		$this->setConfig('hampelSeeder', ['enabled' => true]);
+		// the sample adds another add-on's content where the forum has it, and this suite loads
+		// this add-on alone - so here the forum has none
+		$this->withActiveAddOns();
 		$this->useTemporaryCodeCache();
 		$this->fakesMail();
 		$this->fakesJobs();

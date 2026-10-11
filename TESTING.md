@@ -28,6 +28,11 @@ needs a person.
 - **User upgrades** — records through their entities and groups through XenForo's group change
   service; XenForo's upgrade service and repository only when hooks are asked for. A payment
   profile, which XenForo never deletes, is removed by deleting its row.
+- **Resource Manager resources** — through `XFRM:ResourceItem\Create`, as a fileless resource, with
+  the dates of the resource, its description and its version all set by hand.
+- **Media Gallery items** — a real PNG through the gallery's attachment handler, which makes the
+  holding record and thumbnail; the item through its entity; albums through `XFMG:Album\Creator`.
+  Files in `internal_data/attachments`, `data/attachments` and `data/xfmg`.
 - **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
   alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
   content is silenced first. Published to the news feed by hand, with the date corrected.
@@ -104,6 +109,14 @@ needs a person.
 - **Hooks on upgrades are other add-ons' code.** With `hooks=1` their jobs are queued and the drain
   runs them; what they do is theirs. The suite loads no other add-on, so it proves only that the
   rows come out the same by either route.
+- **Some add-ons finish a delete at the end of the request.** The gallery recounts an owner's
+  quota and rebuilds an album's thumbnail then - by which time a clean has deleted the owner and
+  the album, and XenForo logs a server error for each. The cleaner ends each removal as its own
+  request would (`\XF::triggerRunOnce()`). Found on 2026-10-11 as thirteen error log rows.
+- **An emptied album says it has no thumbnail while the file is still there**, so the gallery's own
+  delete leaves it. The album factory deletes the file itself.
+- **An album's thumbnail is dated by the real clock**, whatever the dates of its items. It is a
+  cache-busting stamp, not a date anyone is shown.
 - **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
@@ -164,6 +177,11 @@ ends in the future and puts the member in its groups, by either route; one run o
 given, by either route, and leaves no group change and no alert; both seeders clean back to their
 starting counts.
 
+For Resource Manager and Media Gallery: only what happens on a forum without them - each factory
+and seeder says so and creates nothing, a refusal is not logged as a server error, and the sample
+leaves both out. **Creating and removing their content is not covered by the suite**, which loads
+this add-on alone; see *Needs a human*.
+
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are
 never the author and never repeat; a moderated thread and reply are in the approval queue and not
@@ -223,6 +241,10 @@ without leaving the add-on marked as processing, and allows it once nothing is r
   run on 2026-10-08 against XenForo 2.3.12 and PHP 8.3, all as described.
 - **An uninstall from the admin control panel** has not been clicked; the command line takes the
   same path to the listener.
+- **`seeder:validate` on a forum with Resource Manager and Media Gallery installed** is the only
+  check of resources and media. Besides its table counts, count the files under `data/xfmg`,
+  `data/attachments` and `internal_data/attachments` before and after, and check no server error
+  was logged: validate compares tables, not files. Last done on 2026-10-11 with both at 2.3.5.
 - **`seeder:validate` on a real forum, with the queue live**, after any change to a factory or to
   cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
   it is what found the permission-cache leak.

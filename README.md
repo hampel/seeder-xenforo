@@ -8,7 +8,8 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 **Early development.** It creates members, forums, threads with replies, tags, reactions, thread
 prefixes, image attachments, content awaiting approval or soft-deleted, conversations, custom
 user fields with members' values, user upgrades held and run out, warning definitions, warnings,
-API keys, who is online and server error log entries, and removes them again. Polls and profile posts are not built yet.
+API keys, who is online and server error log entries - and, where the forum has them, XenForo
+Resource Manager resources and XenForo Media Gallery media items - and removes them again. Polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -76,11 +77,13 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
 | `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
+| `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3) |
+| `Media` | Media Gallery items: in a category, in an album, and where a guest cannot view them | `media` (6; in categories), `categories` (1), `category` (an existing media category's id), `albums` (1; each with two or three items), `hidden` (1; items in a private album), `authors` (3) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
 | `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in three to name) |
-| `Sample` | a little of everything above, bar who is online and the error log; what `seeder:validate` seeds and removes | |
+| `Sample` | a little of everything above, bar who is online and the error log, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -264,6 +267,40 @@ to another system.** The seeder says so before it starts. Either way the member 
 
 XenForo does not delete payment profiles; a seeded one is removed by deleting its row, and is left
 and reported where anything still refers to it.
+
+### Resources and media
+
+**These need XenForo Resource Manager and XenForo Media Gallery.** Seeder installs and runs without
+either: the factories name those add-ons' classes only as strings, and a factory or seeder used on
+a forum that lacks the add-on says so and creates nothing.
+
+```php
+ResourceFactory::new()->for($category)->recycle($authors)->count(6)->create();
+
+MediaFactory::new()->recycle($authors)->count(6)->create();     // in a media category
+MediaFactory::new()->inAlbum($album)->create();
+MediaFactory::new()->hidden()->create();                        // a guest cannot view it
+```
+
+| factory | creates | states |
+|---|---|---|
+| `ResourceCategoryFactory` | a resource category, with no discussion forum | |
+| `ResourceFactory` | a resource with its description and first version; visible, and with no file | `moderated()` |
+| `MediaCategoryFactory` | a gallery category that holds media items | `forAlbums()` |
+| `AlbumFactory` | a member's album that anyone may view | `private()`, `membersOnly()`, `in($category)` |
+| `MediaFactory` | a media item: a real PNG, with the thumbnail the gallery makes of it | `inAlbum($album)`, `hidden()` |
+
+**A media item is a real upload.** A 480 by 270 PNG goes through the gallery's own attachment
+handler, so the item has an attachment, a file and a thumbnail, and its full image is served. All
+are removed with the batch.
+
+**`hidden()` puts the item in a new album only its owner can view.** A run's JSON gives each item's
+`category_id`, `album_id` and `album_view_privacy`, each album's `view_privacy`, and each category.
+Who can view an item in a category is the forum's permissions, which Seeder does not set.
+
+**Nobody is told.** Resources go through Resource Manager's creator and albums through the
+gallery's, with notifications never sent; a media item is saved through its entity. A resource
+category has no discussion forum, so no thread is started.
 
 ### Warnings
 

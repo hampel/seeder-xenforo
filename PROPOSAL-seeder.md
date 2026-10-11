@@ -298,7 +298,7 @@ Each phase ends with something that runs.
 7. **The rest, each as its own factory, as something needs it:** conversations, profile posts,
    polls and bans, then XFRM and XFMG. *Warnings, warning definitions, reactions, and moderated and soft-deleted content
    done 2026-10-08; API keys, who is online, the server error log, tags on threads, conversations, custom user
-   fields and user upgrades 2026-10-11.*
+   fields, user upgrades, XFRM resources and XFMG media 2026-10-11.*
 
 ### The no-trace test is the acceptance test
 

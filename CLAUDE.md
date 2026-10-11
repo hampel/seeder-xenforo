@@ -59,6 +59,15 @@ User upgrades are the model: `withHooks()` and `hooks=1`.
 **Never generate a bare web address in a message.** XenForo turns one into a link preview and
 queues a job that fetches it. Generated links carry link text and point at `example.com`.
 
+## Content that belongs to another add-on
+
+Resource Manager and Media Gallery factories **name those add-ons' classes only as strings** and
+call `needs()` first, so Seeder loads and runs on a forum without them. Never `use` a class from
+another add-on. `SampleSeeder` includes them only where the add-on is active.
+
+**The suite cannot test them**: it loads this add-on alone. After changing one, run
+`seeder:validate` on a forum that has the add-on, and count the files as `TESTING.md` says.
+
 ## Seeded error log entries are never recent
 
 **`ErrorLogFactory::store()` moves any entry dated inside the quiet period back out of it**, and
