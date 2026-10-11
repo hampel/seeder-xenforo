@@ -5,8 +5,9 @@ needs a person.
 
 ## Surfaces
 
-- **CLI commands** — `seeder:config` and `seeder:validate`. XenForo loads every add-on's command
-  classes to list them, so one that cannot load stops every command on the forum.
+- **CLI commands** — `seeder:config`, `seeder:validate`, `seeder:run`, `seeder:list`,
+  `seeder:clean` and `seeder:forget`. XenForo loads every add-on's command classes to list them,
+  so one that cannot load stops every command on the forum.
 - **`config.php`** — reads `$config['hampelSeeder']`, `enableMail`, and the type of the
   `emailTransport` option.
 - **Members** — `seeder:run` writes `xf_user` and its option, profile, privacy, authentication
@@ -267,6 +268,9 @@ is taken out; and allows it once nothing is recorded;
 `seeder:forget` discards records and leaves content.
 
 `FrameworkHalfTest` fails if anything in the framework half references the add-on half.
+
+`ErrorLogPrefixTest` fails if a call that writes to the server error log does not begin its
+message with `Seeder: `.
 
 ## Needs a human
 
