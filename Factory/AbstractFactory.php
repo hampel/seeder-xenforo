@@ -336,6 +336,7 @@ abstract class AbstractFactory
 		{
 			$this->store($entity);
 		});
+		self::forgetCascade($entity);
 		$this->context()->recorder->record($entity, static::class);
 
 		foreach ($this->afterCreating AS $callback)
@@ -382,6 +383,27 @@ abstract class AbstractFactory
 	protected function store(Entity $entity): void
 	{
 		$entity->save();
+	}
+
+	/**
+	 * Forget what the entity was told to save along with itself, now that it has been saved.
+	 *
+	 * XenForo's creators save a thread with its first post, a conversation with its first message,
+	 * a member with their option and profile rows. Later XenForo releases drop that link once the
+	 * save is done; 2.3.0 keeps it for the life of the entity. A run goes on using the same entity
+	 * - so there, saving a thread again saved its first post again, and a reaction to that post,
+	 * which saves the post and through it the thread, went round in a circle and threw.
+	 */
+	private static function forgetCascade(Entity $entity): void
+	{
+		static $cascade;
+		if (!$cascade)
+		{
+			$cascade = new \ReflectionProperty(Entity::class, '_cascadeSave');
+			$cascade->setAccessible(true);
+		}
+
+		$cascade->setValue($entity, []);
 	}
 
 	/**

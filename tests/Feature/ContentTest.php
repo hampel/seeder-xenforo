@@ -205,6 +205,21 @@ class ContentTest extends TestCase
 		$this->assertTrue($factory->sticky()->create()->sticky);
 	}
 
+	public function test_a_created_thread_no_longer_saves_its_first_post_along_with_itself()
+	{
+		// XenForo 2.3.0 keeps the link for the life of the entity, and a reaction to the first
+		// post then goes round in a circle; later releases drop it themselves
+		$this->recordInto('test-cascade');
+		$thread = ThreadFactory::new()->create();
+		$member = UserFactory::new()->create();
+
+		$cascade = new \ReflectionProperty(\XF\Mvc\Entity\Entity::class, '_cascadeSave');
+		$cascade->setAccessible(true);
+
+		$this->assertSame([], $cascade->getValue($thread));
+		$this->assertSame([], $cascade->getValue($member), 'nor a member their option and profile rows');
+	}
+
 	public function test_tags_are_made_when_new_used_when_they_exist_and_tidied_as_xenforo_tidies_them()
 	{
 		$recorder = $this->recordInto('test-tags');
