@@ -15,6 +15,7 @@ class CommandsTest extends TestCase
 		parent::setUp();
 
 		$this->setConfig('enableMail', false);
+		$this->withActiveAddOns();
 		$this->fakesErrors();
 		$this->fakesMail();
 	}
@@ -189,6 +190,25 @@ class CommandsTest extends TestCase
 		$this->runCommand($this->validate(), ['--unattended' => true]);
 
 		$this->assertNoMailSent();
+	}
+
+	public function test_validate_warns_about_each_add_on_that_reports_on_the_error_log()
+	{
+		$this->setConfig('hampelSeeder', ['enabled' => true, 'errorLogQuietHours' => 6]);
+
+		[$code, $quiet] = $this->runCommand($this->validate(), ['--strict' => true]);
+		$this->assertSame(0, $code);
+		$this->assertMatchesRegularExpression('/\[ ok \] quiet period +no seeded error is dated within 6 hours of now/', $quiet);
+
+		$this->withActiveAddOns(['Hampel/LogDigest', 'Hampel/EventLogging']);
+		[$code, $output] = $this->runCommand($this->validate(), ['--strict' => true]);
+
+		$this->assertSame(2, $code);
+		$this->assertMatchesRegularExpression('/\[warn\] Hampel\/LogDigest +active - seeded errors dated inside its window/', $output);
+		$this->assertMatchesRegularExpression('/\[warn\] Hampel\/EventLogging +active - every seeded error will be forwarded/', $output);
+
+		[, $config] = $this->runCommand(new Config());
+		$this->assertMatchesRegularExpression('/quiet period \.+ 6 hours \(config\.php\)/', $config);
 	}
 
 	public function test_the_round_trip_is_skipped_unattended_and_with_seeding_off()

@@ -75,6 +75,11 @@ class Run extends Command
 			$errors->writeln('<comment>Not recording: what this run creates cannot be removed by seeder:clean.</comment>');
 		}
 
+		foreach ((new $class($params))->notices() AS $notice)
+		{
+			$errors->writeln("<comment>{$notice}</comment>");
+		}
+
 		$result = (new SeedRunner())->run($class, $params, $timeline, $seed, $batch);
 		$created = $result['created'];
 		$counts = $result['counts'];

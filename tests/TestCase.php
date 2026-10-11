@@ -28,6 +28,19 @@ abstract class TestCase extends BaseTestCase
 		$this->setConfig('hampelSeeder', []);
 	}
 
+	/**
+	 * Make the forum appear to have exactly these add-ons active, besides XenForo and this one.
+	 *
+	 * Loading only this add-on's code does not change which add-ons XenForo says are active, so
+	 * anything that asks would otherwise answer for whatever this install happens to have.
+	 *
+	 * @param string[] $addOnIds
+	 */
+	protected function withActiveAddOns(array $addOnIds = []): void
+	{
+		$this->swap('addon.cache', array_fill_keys(array_merge(['XF', 'Hampel/Seeder'], $addOnIds), 1000070));
+	}
+
 	/** @var string|null */
 	private $codeCache;
 

@@ -55,6 +55,16 @@ administrator, so keys are too.
 **Never generate a bare web address in a message.** XenForo turns one into a link preview and
 queues a job that fetches it. Generated links carry link text and point at `example.com`.
 
+## Seeded error log entries are never recent
+
+**`ErrorLogFactory::store()` moves any entry dated inside the quiet period back out of it**, and
+that check is the last thing before the save so no state or override gets past it. Other add-ons
+post new errors to chat as they appear; a seeded log must not look new. Do not add a way round
+it, and do not put the error log in `SampleSeeder` or `DefaultSeeder`.
+
+The factory lives in the framework half and cannot read `config.php`, so the period is handed to
+it: `SeedRunner` calls `ErrorLogFactory::quietFor()` with `Config::errorLogQuietHours()`.
+
 ## A date left to its column default is wrong
 
 **`'default' => \XF::$time` in an entity structure is evaluated once per process**, when the

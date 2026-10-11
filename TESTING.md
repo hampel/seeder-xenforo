@@ -24,6 +24,8 @@ needs a person.
 - **Who is online** — `xf_session_activity`, written in bulk with multi-row inserts and no entity.
   Each row is recorded; removal is a multi-row delete by key. A row whose key is already in the
   table is skipped and not recorded.
+- **The server error log** — entries written through the `ErrorLog` entity as data. Other add-ons
+  read this table and send what they find: see *Fragile points*.
 - **API keys** — through the `ApiKey` entity, not XenForo's key manager service, which emails
   every super administrator. A run prints key values: they are live credentials on that forum.
 - **Warnings** — definitions through their entity and three phrases; warnings through the
@@ -55,6 +57,11 @@ needs a person.
   run, or a rebuild after cleaning writes a deleted forum's permission rows back.
 - **A failed delete leaves a transaction open.** Each removal runs in its own and is unwound to
   where it started, reading the adapter's savepoint count by reflection.
+- **Seeded error log entries are read by whatever reports on that log.** The quiet period - no
+  entry within two hours of now - is all that keeps them from anything that posts new errors as
+  they appear, and it rests on such a thing looking only at recent entries. Anything that selects
+  by row id, or by a longer window, reports them. Known readers are named in
+  `Seed\ErrorLogSeeder::READERS`; add to it when another turns up.
 - **A guest's who-is-online row is keyed by its address.** A seeded row at a real visitor's address
   would replace theirs and then be deleted with the batch. Addresses come from reserved ranges,
   and a key already present is left alone.
@@ -128,6 +135,13 @@ inside the online window; a share can be put in one network, given IPv6 addresse
 a row already in the table is neither overwritten nor recorded nor cleaned; cleaning removes
 exactly what was written and reports rows XenForo already pruned.
 
+For the error log: no entry is dated inside the quiet period, whatever the span or the date asked
+for, and the period can be lengthened but not shortened; each origin has the request state and
+trace that mark it; each kind of fault has the file, message and trace a reader tells it by; a log
+has faults that recur, covers many days and cleans away; the seeder names members only on page
+views; whoever runs it is told, before anything is created, which active add-ons will report on
+the entries.
+
 For API keys: a key acts as a member by default and is made after the member was; `for()` names
 a member even when others are recycled; super user, guest and inactive kinds; scopes are written
 as rows that go when the key is cleaned, and an unknown scope is refused; no mail is sent. On a
@@ -170,4 +184,6 @@ without leaving the add-on marked as processing, and allows it once nothing is r
 - **`seeder:validate` on a real forum, with the queue live**, after any change to a factory or to
   cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
   it is what found the permission-cache leak.
+- **That a seeded error log really does stay out of a chat channel.** Only the dates were checked,
+  against the rule the poller on the development forum uses; the poller itself was not run.
 - The commands have run on XenForo 2.3 only.

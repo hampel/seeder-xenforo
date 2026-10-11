@@ -22,6 +22,17 @@ abstract class AbstractSeeder
 	abstract public function run();
 
 	/**
+	 * Anything whoever runs this should be told before it starts - what it will set off
+	 * elsewhere on this forum, say. Printed before anything is created.
+	 *
+	 * @return string[]
+	 */
+	public function notices(): array
+	{
+		return [];
+	}
+
+	/**
 	 * Run other seeders. Each gets this seeder's parameters, with the ones given here on top.
 	 *
 	 * @param string|string[] $seeders class names

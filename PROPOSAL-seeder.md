@@ -297,7 +297,7 @@ Each phase ends with something that runs.
    phase 7 because the first consumer needed them.*
 7. **The rest, each as its own factory, as something needs it:** conversations, profile posts,
    polls and bans, then XFRM and XFMG. *Warnings, warning definitions, reactions, and moderated and soft-deleted content
-   done 2026-10-08; API keys and who is online 2026-10-11.*
+   done 2026-10-08; API keys, who is online and the server error log 2026-10-11.*
 
 ### The no-trace test is the acceptance test
 
@@ -383,6 +383,13 @@ seeded.
 - **Content is deleted last.** Deleting a thread as it was stored meant its replies and reactions
   were added to an already-deleted thread. A `finish()` step now runs after everything `has()`
   created.
+- **Some seeded data is read by things that send it on.** Server error log entries are picked up
+  by add-ons that post, mail or forward errors. A forum-wide "seeding" mode those add-ons would
+  check was considered and rejected on 2026-10-11: they act from cron, minutes or hours later, so
+  there is no moment at which seeding is over, and a mode left on would silence real errors. The
+  rule chosen needs nothing from them: no seeded entry is dated within two hours of now, which
+  keeps it from anything that watches for recent errors. What reports by another rule is named to
+  whoever runs the seeder.
 - **A second way to create was needed.** Seventy thousand who-is-online rows, asked for to test
   behaviour under a swarm of robots, could not be saved one entity at a time. `AbstractBulkFactory`
   writes and records rows in multi-row statements and the cleaner removes them the same way:

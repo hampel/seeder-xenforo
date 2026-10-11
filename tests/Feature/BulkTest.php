@@ -116,7 +116,8 @@ class BulkTest extends TestCase
 		SessionActivityFactory::new()->robots(1000, 6, 0.8)->ipv6(0.1)->stale(0.25)->create();
 
 		$db = $this->app()->db();
-		$mine = "robot_key <> '' AND user_id = 0";
+		// by address range as well: a real robot's row, days old and not yet pruned, is not ours
+		$mine = "robot_key <> '' AND user_id = 0 AND (ORD(SUBSTRING(ip, 1, 1)) = 10 OR HEX(SUBSTRING(ip, 1, 4)) = '20010DB8')";
 		$this->assertSame(100, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE {$mine} AND LENGTH(ip) = 16"));
 
 		$networks = array_map('intval', $db->fetchAllColumn(

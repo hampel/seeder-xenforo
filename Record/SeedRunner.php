@@ -3,6 +3,7 @@
 use Hampel\Seeder\CollectingRecorder;
 use Hampel\Seeder\Config;
 use Hampel\Seeder\Context;
+use Hampel\Seeder\Factory\ErrorLogFactory;
 use Hampel\Seeder\NullRecorder;
 use Hampel\Seeder\Timeline;
 
@@ -24,6 +25,7 @@ class SeedRunner
 	public function run(string $class, array $params, Timeline $timeline, ?int $seed, ?string $batch): array
 	{
 		$faker = Context::faker(Config::locale(), $seed);
+		ErrorLogFactory::quietFor(Config::errorLogQuietHours() * 3600);
 		$recorder = new CollectingRecorder($batch === null ? new NullRecorder() : new TableRecorder($batch));
 		$password = $faker->regexify('[a-z]{4}-[a-z]{4}-[0-9]{4}');
 

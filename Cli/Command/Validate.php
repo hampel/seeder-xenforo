@@ -5,6 +5,7 @@ use Hampel\Seeder\Cli\RendersReport;
 use Hampel\Seeder\Config as SeederConfig;
 use Hampel\Seeder\Guard;
 use Hampel\Seeder\Record\RoundTrip;
+use Hampel\Seeder\Seed\ErrorLogSeeder;
 use Hampel\Seeder\Repository\RecordRepository;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -71,6 +72,12 @@ class Validate extends Command
 		$this->probe('mail', function ()
 		{
 			$this->mail();
+		});
+
+		$this->checkSection('Error log');
+		$this->probe('error log', function ()
+		{
+			$this->errorLog();
 		});
 
 		$this->checkSection('Round trip');
@@ -184,6 +191,21 @@ class Validate extends Command
 		}
 
 		return false;
+	}
+
+	/**
+	 * Seeded error log entries are read by whatever reports on that log. Say which of those are
+	 * here, since each will report on entries nobody saw being written.
+	 */
+	protected function errorLog(): void
+	{
+		$hours = SeederConfig::errorLogQuietHours();
+		$this->checkOk('quiet period', "no seeded error is dated within {$hours} hours of now, so none looks new");
+
+		foreach (ErrorLogSeeder::activeReaders() AS $addOnId => $what)
+		{
+			$this->checkWarn($addOnId, "active - {$what}");
+		}
 	}
 
 	/**

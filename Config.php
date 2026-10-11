@@ -11,6 +11,8 @@ class Config
 
 	public const DEFAULT_LOCALE = 'en_AU';
 
+	public const MINIMUM_QUIET_HOURS = 2;
+
 	public static function all(): array
 	{
 		$config = \XF::config(self::KEY);
@@ -29,6 +31,17 @@ class Config
 	public static function has(string $key): bool
 	{
 		return array_key_exists($key, self::all());
+	}
+
+	/**
+	 * How long before now no seeded error log entry may be dated, in hours. Things that watch the
+	 * log for new errors look at the last hour or so; this keeps seeded entries out of it.
+	 */
+	public static function errorLogQuietHours(): int
+	{
+		$hours = self::get('errorLogQuietHours');
+
+		return is_int($hours) && $hours > self::MINIMUM_QUIET_HOURS ? $hours : self::MINIMUM_QUIET_HOURS;
 	}
 
 	public static function locale(): string

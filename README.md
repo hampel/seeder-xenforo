@@ -7,7 +7,7 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
 **Early development.** It creates members, forums, threads with replies, reactions, thread prefixes,
 image attachments, content awaiting approval or soft-deleted, warning definitions, warnings, API
-keys and who is online, and removes them again. Conversations, polls and profile posts are not built yet.
+keys, who is online and server error log entries, and removes them again. Conversations, polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -33,6 +33,7 @@ Everything is set in `src/config.php`, under `$config['hampelSeeder']`.
 |---|---|---|
 | `enabled` | off | allow seeding on this forum — only a literal `true` counts |
 | `locale` | `en_AU` | the [Faker](https://fakerphp.org/) locale for generated names and text |
+| `errorLogQuietHours` | 2 | how long before now no seeded error log entry may be dated; never less than 2 |
 
 ## Usage
 
@@ -74,7 +75,8 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
-| `Sample` | a little of everything above, bar who is online; what `seeder:validate` seeds and removes | |
+| `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in four to name) |
+| `Sample` | a little of everything above, bar who is online and the error log; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -249,6 +251,34 @@ something that reports only the top few.
 **A swarm on one page:** `-p robot_action=Search::Results`, or `->robotsOn('Search::Results', 0.9)`,
 puts nine robots in ten on that one action while guests and members carry on as usual. The
 action has to exist on the forum.
+
+### The server error log
+
+```bash
+php cmd.php seeder:run ErrorLog -p errors=500
+```
+
+**Entries are written as data. Nothing is made to fail**, so the forum logs no real error. Each is
+drawn from a pool of made-up faults — in a handful of the forum's installed add-ons, in XenForo
+itself, in a template, in a file outside the forum — with a few of them accounting for most
+entries, as in a real log.
+
+| factory | builds | states |
+|---|---|---|
+| `ErrorLogFactory` | one entry | `web()`, `cli()`, `job()`, `unknownOrigin()`, `forUser($member)`, `inAddOn('Vendor/AddOn')`, `inCore()`, `php('E_DEPRECATED')`, `fatal()`, `inTemplate('public:thread_view')`, `missingClass('Vendor/AddOn')`, `missingAutoload('Vendor/AddOn')`, `outside()` |
+
+**No entry is ever dated within two hours of now.** Anything that watches the log for new errors
+and posts them somewhere looks at recent entries, and a seeded log must not be taken for a burst
+of new ones. The factory enforces this when it saves, whatever date it was given.
+`errorLogQuietHours` in `config.php` makes the period longer.
+
+**Whatever reports on the log by another rule will still report on these**: a digest that covers
+the days they are dated in, or anything that forwards every entry it has not seen. `seeder:run`
+names each such add-on it finds active before it creates anything, and `seeder:validate` warns of
+them. Cleaning removes the entries from the log; it cannot recall what was already sent.
+
+An origin is recorded the way XenForo records one: a page view's address and input, a command
+line, and for a job the job manager's frame in the stack trace.
 
 ### Your own seeders and factories
 

@@ -53,6 +53,10 @@ class Config extends Command
 		$this->detail('locale', SeederConfig::locale()
 			. (SeederConfig::get('locale') !== null ? self::FROM_CONFIG : ' ' . $this->muted('(default)')));
 
+		$this->heading('Error log');
+		$this->detail('quiet period', SeederConfig::errorLogQuietHours() . ' hours'
+			. (SeederConfig::get('errorLogQuietHours') !== null ? self::FROM_CONFIG : ' ' . $this->muted('(default)')));
+
 		$this->heading('Mail');
 		// no source shown: XenForo merges its defaults into config, so set and defaulted look alike
 		$this->detail('enableMail', self::mailEnabled() ? 'yes' : 'no');
