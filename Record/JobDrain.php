@@ -39,6 +39,11 @@ class JobDrain
 
 		for ($pass = 0; $pass < self::PASSES; $pass++)
 		{
+			// Some jobs are not queued when the entity is saved but held back until the request
+			// ends - the re-index of a conversation's messages is one. Left to that, they would be
+			// queued after this had finished looking.
+			\XF::triggerRunOnce();
+
 			$ids = \XF::db()->fetchAllColumn(
 				'SELECT job_id FROM xf_job WHERE job_id > ? AND execute_class <> ? ORDER BY job_id',
 				[$this->mark, 'XF\Job\Cron']

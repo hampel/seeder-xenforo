@@ -19,6 +19,9 @@ needs a person.
 - **Tags** — made through the `Tag` entity and applied through XenForo's tag repository, not the
   thread creator, which only tags where the author has permission. XenForo deletes a tag nobody
   uses, so cleaning often finds seeded tags already gone.
+- **Conversations** — through XenForo's `Conversation\CreatorService` and `ReplierService`, with
+  notifications never sent. XenForo has no delete for a single message, so the factory removes one
+  and corrects the conversation's counts and last message itself.
 - **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
   alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
   content is silenced first. Published to the news feed by hand, with the date corrected.
@@ -85,6 +88,9 @@ needs a person.
 - **Warning actions are the forum's.** A seeded warning that takes a member past a threshold
   triggers whatever the forum has configured - a ban, a group change. XenForo reverses it when the
   warning is removed; that reversal has only been run on a forum with no actions set.
+- **Some jobs are queued only when the request ends** (`\XF::runOnce()`), after a naive drain has
+  finished. The drain releases them first; without that a conversation left its search re-index
+  queued behind every run.
 - **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
@@ -131,6 +137,12 @@ fails mid-transaction is undone and the rest still happen.
 For tags: new ones are made and recorded, existing ones used and left, names tidied, dates taken
 from the thread, and a name the forum would not accept refused. For the cleaner: a removal that
 loses a deadlock is tried again, and after three tries its record is kept.
+
+For conversations: the conversation, its first message and each participant's rows carry the date
+asked for; replies alternate authors among the participants and each is later than the last, never
+in the same second; nobody is alerted, mailed or has an address logged; cleaning restores the
+counts and the members' unread totals; removing one reply leaves the conversation pointing at the
+one before.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are

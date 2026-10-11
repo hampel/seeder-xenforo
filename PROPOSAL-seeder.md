@@ -297,7 +297,7 @@ Each phase ends with something that runs.
    phase 7 because the first consumer needed them.*
 7. **The rest, each as its own factory, as something needs it:** conversations, profile posts,
    polls and bans, then XFRM and XFMG. *Warnings, warning definitions, reactions, and moderated and soft-deleted content
-   done 2026-10-08; API keys, who is online, the server error log and tags on threads
+   done 2026-10-08; API keys, who is online, the server error log, tags on threads and conversations
    2026-10-11.*
 
 ### The no-trace test is the acceptance test

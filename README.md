@@ -5,9 +5,10 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
-**Early development.** It creates members, forums, threads with replies, reactions, thread prefixes,
-image attachments, content awaiting approval or soft-deleted, warning definitions, warnings, API
-keys, who is online and server error log entries, and removes them again. Conversations, polls and profile posts are not built yet.
+**Early development.** It creates members, forums, threads with replies, tags, reactions, thread
+prefixes, image attachments, content awaiting approval or soft-deleted, conversations, warning
+definitions, warnings, API keys, who is online and server error log entries, and removes them
+again. Polls and profile posts are not built yet.
 
 ## Requirements
 
@@ -72,6 +73,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
@@ -162,6 +164,39 @@ ThreadFactory::new()
 	->has(ReactionFactory::new()->count([0, 5]))                      // on the first post
 	->has(PostFactory::new()->count(4)->has(ReactionFactory::new()->count([0, 3])))
 	->create();
+```
+
+### Conversations
+
+```php
+ConversationFactory::new()
+    ->recycle($members)
+    ->to(2)                                              // two recipients: three participants
+    ->has(ConversationMessageFactory::new()->count(9))
+    ->create();
+```
+
+| factory | creates | states |
+|---|---|---|
+| `ConversationFactory` | a conversation, its first message and a row for each participant | `from($member)`, `to(n)` or `to([$member, ...])` |
+| `ConversationMessageFactory` | a reply | |
+
+**Every message has its own date.** Each reply is dated at least a second after the message before
+it, so a conversation never has two messages in the same second, and none is dated before its
+author joined or after now. Set `start_date` on the conversation or `message_date` on a reply to
+place one exactly.
+
+**Each reply is from someone other than whoever wrote the message before it**, drawn from the
+conversation's participants, so a conversation with replies has messages from at least two
+members. Set `user_id` on a reply to choose.
+
+**It tells nobody.** XenForo's creator and replier are used with their notifications off: no alert
+and no email. The recipients' unread counts do go up, as they would, and come back down when the
+batch is cleaned. Members made by `UserFactory` have an address at a reserved domain unless
+`withoutEmail()` is used.
+
+```bash
+php cmd.php seeder:run Conversation -p conversations=5 -p messages=10
 ```
 
 ### Warnings
