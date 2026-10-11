@@ -22,6 +22,7 @@ class AccountAccessTest extends TestCase
 	private const TABLES = [
 		'xf_user', 'xf_user_connected_account', 'xf_user_tfa', 'xf_passkey', 'xf_user_remember', 'xf_user_confirmation',
 		'xf_ip', 'xf_session_activity', 'xf_user_alert', 'xf_user_follow', 'xf_post', 'xf_thread', 'xf_change_log',
+		'xf_approval_queue',
 	];
 
 	/** @var Context|null */
@@ -180,6 +181,56 @@ class AccountAccessTest extends TestCase
 		$this->assertSame(['confirmation', 'connected', 'login,alert,following,followed', 'login,alert,following,followed', 'passkey', 'remember', 'two_step'], $has);
 
 		$this->assertSame([], (new Cleaner())->clean('test-access-seeder')['failed']);
+		$this->assertSame($before, $this->tableCounts());
+	}
+
+	public function test_a_moderated_member_is_in_the_approval_queue_at_the_date_they_registered()
+	{
+		$this->recordInto('test-moderated');
+		$queued = (int) $this->app()->db()->fetchOne("SELECT COUNT(*) FROM xf_approval_queue WHERE content_type = 'user'");
+
+		$members = UserFactory::new()->moderated()->count(3)->create();
+		$plain = UserFactory::new()->create();
+
+		$dates = [];
+		foreach ($members AS $member)
+		{
+			$this->assertDatabaseHas('xf_user', ['user_id' => $member->user_id, 'user_state' => 'moderated']);
+			$this->assertDatabaseHas('xf_approval_queue', ['content_type' => 'user', 'content_id' => $member->user_id, 'content_date' => $member->register_date]);
+			$dates[] = $member->register_date;
+		}
+		$this->assertCount(3, array_unique($dates), 'each registered at a moment of their own, so the queue has an order');
+		$this->assertDatabaseCount('xf_approval_queue', 0, ['content_type' => 'user', 'content_id' => $plain->user_id]);
+
+		$this->assertSame([], (new Cleaner())->clean('test-moderated')['failed']);
+		$this->assertSame($queued, (int) $this->app()->db()->fetchOne("SELECT COUNT(*) FROM xf_approval_queue WHERE content_type = 'user'"), 'removing the member takes their queue entry');
+	}
+
+	public function test_a_registration_date_given_to_a_moderated_member_is_the_date_in_the_queue()
+	{
+		$this->recordInto('test-moderated-date');
+		$when = \XF::$time - 86400 * 400;
+
+		$member = UserFactory::new()->moderated()->create(['register_date' => $when]);
+
+		$this->assertDatabaseHas('xf_approval_queue', ['content_type' => 'user', 'content_id' => $member->user_id, 'content_date' => $when]);
+	}
+
+	public function test_the_seeder_makes_moderated_members_and_cleaning_empties_the_queue_of_them()
+	{
+		$before = $this->tableCounts();
+
+		$tester = new CommandTester(new Run());
+		$code = $tester->execute(['seeder' => 'User', '-p' => ['users=1', 'moderated=4'], '--batch' => 'test-moderated-seeder', '--seed' => '4'], ['capture_stderr_separately' => true]);
+
+		$this->assertSame(0, $code, $tester->getDisplay() . $tester->getErrorOutput());
+		$this->assertCount(5, json_decode($tester->getDisplay(), true)['created']['XF:User']);
+
+		$after = $this->tableCounts();
+		$this->assertSame($before['xf_user'] + 5, $after['xf_user']);
+		$this->assertSame($before['xf_approval_queue'] + 4, $after['xf_approval_queue']);
+
+		$this->assertSame([], (new Cleaner())->clean('test-moderated-seeder')['failed']);
 		$this->assertSame($before, $this->tableCounts());
 	}
 

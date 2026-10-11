@@ -213,7 +213,9 @@ For account access: each way in writes the rows XenForo keeps for it, dated in t
 nothing; a member active without content has the login, alert and follows and no content; a named
 member can be the other party; an unknown provider is refused before anyone is created; a member
 whose extras fail is removed, not left unrecorded; the seeder cleans back to its starting counts
-across thirteen tables.
+across fourteen tables. A moderated member is in the approval queue at their registration date, a
+date given to one is the date in the queue, a member in any other state is not in it, and
+removing the member takes the entry with them.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are

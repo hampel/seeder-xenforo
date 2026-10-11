@@ -7,12 +7,14 @@ use Hampel\Seeder\Factory\UserFactory;
  *
  * Parameters:
  *
- *     users    how many ordinary members (20)
- *     access   how many more, each with another way into their account, cycling through a
- *              connected account, two-step verification, a passkey, a "stay logged in" key and a
- *              pending email confirmation (0)
- *     active   how many more who have used the forum without posting: logged in, alerted,
- *              following and followed (0)
+ *     users      how many ordinary members (20)
+ *     access     how many more, each with another way into their account, cycling through a
+ *                connected account, two-step verification, a passkey, a "stay logged in" key and a
+ *                pending email confirmation (0)
+ *     active     how many more who have used the forum without posting: logged in, alerted,
+ *                following and followed (0)
+ *     moderated  how many more who are awaiting approval, each in the approval queue at the date
+ *                they registered (0)
  */
 class UserSeeder extends AbstractSeeder
 {
@@ -40,6 +42,12 @@ class UserSeeder extends AbstractSeeder
 		if ($active)
 		{
 			UserFactory::new()->activeWithoutContent()->count($active)->create();
+		}
+
+		$moderated = $this->count('moderated', 0);
+		if ($moderated)
+		{
+			UserFactory::new()->moderated()->count($moderated)->create();
 		}
 	}
 }
