@@ -11,7 +11,7 @@ use Hampel\Seeder\Factory\UserFactory;
  *
  *     errors    how many entries (300)
  *     members   how many members to create for entries to be attributed to; about one entry in
- *               three from a page view names one (5)
+ *               three that came from a page view names one (5)
  *
  * **Entries are written as data. Nothing is made to fail.** None is dated within the quiet period
  * before now, so nothing that watches for new errors takes one for new. Whatever reports on the
@@ -39,14 +39,14 @@ class ErrorLogSeeder extends AbstractSeeder
 
 		ErrorLogFactory::new()
 			->count($this->count('errors', 300))
-			->state(function (array $attributes) use ($ids)
+			->state(['user_id' => function (array $attributes) use ($ids)
 			{
-				// attributes are still unresolved here, so the origin is decided for the entries
-				// that are to carry a member
-				return $ids && mt_rand(1, 100) <= 25
-					? ['origin' => 'web', 'user_id' => $ids[mt_rand(0, count($ids) - 1)]]
-					: [];
-			})
+				// only a page view has a member, and the fault has already decided whether this
+				// is one: an entry is not made a page view so as to give it a member
+				return $ids && $attributes['origin'] === 'web' && mt_rand(1, 100) <= 33
+					? $ids[mt_rand(0, count($ids) - 1)]
+					: 0;
+			}])
 			->create();
 	}
 
