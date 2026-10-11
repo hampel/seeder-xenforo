@@ -113,6 +113,11 @@ Setting them earlier is silently overwritten; setting them later without `forceS
   for p in l['packages']: print(p['name'], p.get('require',{}).get('php','-'))"
   ```
 
+**`phpunit/phpunit` is required in `require-dev` and never imported, on purpose.** Every active
+add-on that declares `composer_autoload` shares XenForo's class loader, and two PHPUnit majors in
+it kill a test run; the pin keeps a `composer update` from moving this add-on into that. Pinned to
+`^12.0` on 2026-10-07. It can come off if the test framework ever pins PHPUnit itself.
+
 ## Two ways to create, and which to use
 
 | the table's rows | use |
@@ -154,6 +159,12 @@ early** — after which every later write in the test is permanent:
   list entry and carries on, which in a test means carrying on outside the transaction.
 - **DDL.** `CREATE TABLE` commits. No test here creates or drops a table.
 - anything else that calls `rollbackAll()` or `commit()`.
+
+**Every test in a transaction runs with the data registry faked** - `Tests\TestCase::setUp()` does
+it. Creating or removing content rewrites several registry rows, the forum's own cron writes the
+same rows every minute, and on MariaDB 11.8 the loser of that race gets `Record has changed since
+last read` (error 1020). Before this, about one run in three failed on it. A test that needs the
+real registry row has to say so and take the race.
 
 **Never empty or bulk-delete from the record table in a test**, even inside a transaction. On a
 forum where other people have batches, the day the transaction does not hold their content is

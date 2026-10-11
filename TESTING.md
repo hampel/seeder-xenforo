@@ -153,7 +153,8 @@ vendor/bin/phpunit
 vendor/bin/phpunit --order-by=random
 ```
 
-Covers: both commands load as valid XenForo commands; the guard opens only on a literal `true`;
+Covers: every command class the add-on ships is one XenForo can load, against the full list, so
+a command added without a test fails; the guard opens only on a literal `true`;
 `config` shows each value's source, prints no transport setting but its type, and sends nothing;
 `validate` exits 0, 1 and 2 as documented with and without `--strict`; a check that throws becomes
 a `[fail]` row and does not end the run. For records: an entity is recorded once, with the real

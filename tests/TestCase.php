@@ -1,5 +1,6 @@
 <?php namespace Tests;
 
+use Hampel\Testing\Concerns\UsesDatabaseTransactions;
 use Hampel\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
@@ -26,6 +27,15 @@ abstract class TestCase extends BaseTestCase
 		parent::setUp();
 
 		$this->setConfig('hampelSeeder', []);
+
+		// A test in a transaction is in a race with the forum's own cron for every data registry
+		// row both write, and creating or removing content rewrites several. Kept in memory, the
+		// rows are never contended for - and a rolled-back transaction cannot leave the registry
+		// describing content that is gone.
+		if (in_array(UsesDatabaseTransactions::class, class_uses($this), true))
+		{
+			$this->fakesRegistry();
+		}
 	}
 
 	/**

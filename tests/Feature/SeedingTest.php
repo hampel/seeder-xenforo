@@ -400,14 +400,6 @@ class SeedingTest extends TestCase
 		$this->assertSame($before[self::RECORDS], $after[self::RECORDS]);
 	}
 
-	public function test_run_is_a_valid_xenforo_command()
-	{
-		$runner = new \XF\Cli\Runner();
-		$isValid = new \ReflectionMethod($runner, 'isValidCommandClass');
-
-		$this->assertTrue($isValid->invoke($runner, Run::class));
-	}
-
 	private function recordInto(string $batch, string $password = 'password'): CollectingRecorder
 	{
 		$recorder = new CollectingRecorder(new TableRecorder($batch));

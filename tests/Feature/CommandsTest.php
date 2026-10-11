@@ -24,13 +24,20 @@ class CommandsTest extends TestCase
 	 * XenForo loads every add-on's command classes to list them, so one that cannot load takes down
 	 * every command in cmd.php, not only its own.
 	 */
-	public function test_both_commands_are_valid_xenforo_commands()
+	public function test_every_command_this_add_on_ships_is_one_xenforo_can_load()
 	{
-		$runner = new \XF\Cli\Runner();
-		$isValid = new \ReflectionMethod($runner, 'isValidCommandClass');
+		$classes = $this->assertConsoleCommandsLoad('Hampel/Seeder');
+		sort($classes);
 
-		$this->assertTrue($isValid->invoke($runner, Config::class));
-		$this->assertTrue($isValid->invoke($runner, Validate::class));
+		// the whole list, so that a command added without a test fails here
+		$this->assertSame([
+			'Hampel\\Seeder\\Cli\\Command\\Clean',
+			'Hampel\\Seeder\\Cli\\Command\\Config',
+			'Hampel\\Seeder\\Cli\\Command\\Forget',
+			'Hampel\\Seeder\\Cli\\Command\\ListBatches',
+			'Hampel\\Seeder\\Cli\\Command\\Run',
+			'Hampel\\Seeder\\Cli\\Command\\Validate',
+		], $classes);
 	}
 
 	public function test_config_shows_the_guard_and_where_each_value_comes_from()
