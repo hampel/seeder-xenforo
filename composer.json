@@ -10,7 +10,7 @@
 		"symfony/deprecation-contracts": "*"
 	},
 	"require-dev": {
-		"hampel/xenforo-test-framework": "^5.5",
+		"hampel/xenforo-test-framework": "^5.19",
 		"phpunit/phpunit": "^12.0"
 	},
 	"autoload-dev": {
