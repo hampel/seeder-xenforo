@@ -260,8 +260,11 @@ without leaving the add-on marked as processing, and allows it once nothing is r
   `CLAUDE.md`, `TESTING.md` and `PROPOSAL-seeder.md` are not.
 - **A disposable forum, before a release.** Install the built zip on a fresh XenForo with
   development off, switch seeding on, and run in order: `seeder:validate`, `seeder:run`, an
-  uninstall (refused), `seeder:clean`, an uninstall (succeeds, and the record table is gone). Last
-  run on 2026-10-08 against XenForo 2.3.12 and PHP 8.3, all as described.
+  uninstall (refused), `seeder:clean`, an uninstall (succeeds, and the record table is gone). Run
+  `seeder:validate` once before installing Media Gallery and Resource Manager and once after, so
+  both a forum without them and one with them are covered. Last run on 2026-10-11 against XenForo,
+  Media Gallery and Resource Manager 2.3.13 on PHP 8.3, all as described: every seeder run, 3,267
+  records made and removed, no file, row, mail or server error left.
 - **An uninstall from the admin control panel** has not been clicked; the command line takes the
   same path to the listener.
 - **`seeder:validate` on a forum with Resource Manager and Media Gallery installed** is the only
