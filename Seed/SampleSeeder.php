@@ -4,6 +4,7 @@
  * A little of everything this add-on can create, and no more than it takes to have one of each:
  * members, a forum, threads whose first posts cover the range of BB code, replies, a prefix,
  * attachments, tags, reactions, content awaiting approval and content soft-deleted, conversations,
+ * members with other ways into their accounts and members active without posting,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
  * warnings and API keys - and, where the forum has Resource Manager or Media Gallery, resources and
  * media items.
@@ -17,6 +18,7 @@ class SampleSeeder extends AbstractSeeder
 	{
 		$this->call(ThreadSeeder::class, ['threads' => 8, 'replies' => 3, 'authors' => 4, 'prefix' => 1, 'reactions' => 2, 'states' => 1, 'tags' => 3]);
 		$this->call(ConversationSeeder::class, ['conversations' => 2, 'messages' => 4, 'members' => 3]);
+		$this->call(UserSeeder::class, ['users' => 0, 'access' => 5, 'active' => 2]);
 		$this->call(UserFieldSeeder::class, ['fields' => 4, 'members' => 3]);
 		$this->call(UserUpgradeSeeder::class, ['upgrades' => 1, 'members' => 3, 'active' => 2, 'expired' => 2]);
 		// content that belongs to another add-on, where the forum has it

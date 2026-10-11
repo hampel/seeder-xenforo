@@ -2,6 +2,7 @@
 
 use XF\Entity\User;
 use XF\Mvc\Entity\Entity;
+use XF\Repository\TfaRepository;
 use XF\Repository\UserRepository;
 use XF\Service\User\DeleteCleanUpService;
 
@@ -30,6 +31,9 @@ class UserFactory extends AbstractFactory
 
 	/** @var array [password => [scheme class, data]] - hashing is slow, and every member shares one */
 	private static $hashes = [];
+
+	/** @var \WeakMap|null what each member is to be given once saved: [[kind, argument], ...] */
+	private static $extras;
 
 	/** @var array names handed out in this process and not yet saved */
 	private static $taken = [];
@@ -82,6 +86,146 @@ class UserFactory extends AbstractFactory
 	public function withoutEmail()
 	{
 		return $this->state(['email' => '']);
+	}
+
+	/**
+	 * Has signed in with another service as well: a connected account row for that provider, with
+	 * a made-up id at the provider and no tokens.
+	 *
+	 * @param string $provider one of the forum's connected account providers - google, github...
+	 *
+	 * @return static
+	 */
+	public function withConnectedAccount(string $provider = 'google')
+	{
+		return $this->extra('connected', $provider);
+	}
+
+	/**
+	 * Has two-step verification switched on: an authenticator app and backup codes, as XenForo
+	 * sets them up. The secret is random; nobody holds it.
+	 *
+	 * @return static
+	 */
+	public function withTwoStep()
+	{
+		return $this->extra('two_step');
+	}
+
+	/**
+	 * Has a passkey registered. **The key is made up and cannot sign anything**: the row is there
+	 * for code that asks whether a member has one, not for signing in with.
+	 *
+	 * @return static
+	 */
+	public function withPasskey()
+	{
+		return $this->extra('passkey');
+	}
+
+	/**
+	 * Has a "stay logged in" key that has not run out. Nobody holds the cookie that matches it.
+	 *
+	 * @return static
+	 */
+	public function withRememberKey()
+	{
+		return $this->extra('remember');
+	}
+
+	/**
+	 * Is waiting to confirm their email address, with the confirmation row a registration
+	 * leaves - unconfirmed() alone sets the state and writes no row. No email is sent.
+	 *
+	 * @return static
+	 */
+	public function withConfirmationPending()
+	{
+		return $this->unconfirmed()->extra('confirmation');
+	}
+
+	/**
+	 * Has logged in: an IP log row for the login and a who-is-online row, both at the member's
+	 * last activity and from a reserved address.
+	 *
+	 * @return static
+	 */
+	public function withLogin()
+	{
+		return $this->extra('login');
+	}
+
+	/**
+	 * Has an alert waiting, unread, from another member.
+	 *
+	 * @param User|null $from a new member if omitted
+	 *
+	 * @return static
+	 */
+	public function withAlert(?User $from = null)
+	{
+		return $this->extra('alert', $from);
+	}
+
+	/**
+	 * Follows another member.
+	 *
+	 * @param User|null $other a new member if omitted
+	 *
+	 * @return static
+	 */
+	public function following(?User $other = null)
+	{
+		return $this->extra('following', $other);
+	}
+
+	/**
+	 * Is followed by another member.
+	 *
+	 * @param User|null $other a new member if omitted
+	 *
+	 * @return static
+	 */
+	public function followedBy(?User $other = null)
+	{
+		return $this->extra('followed', $other);
+	}
+
+	/**
+	 * Has used the forum without ever posting: has logged in, has an alert, follows someone and
+	 * is followed - by one other member, created for the purpose. Nothing here is content.
+	 *
+	 * @return static
+	 */
+	public function activeWithoutContent()
+	{
+		return $this->state(function (array $attributes)
+		{
+			// one companion for all three, made when the member is
+			$other = function ()
+			{
+				static $made = null;
+
+				return $made = $made ?? static::new()->create();
+			};
+
+			return ['extras' => array_merge($attributes['extras'] ?? [], [
+				['login', null], ['alert', $other], ['following', $other], ['followed', $other],
+			])];
+		});
+	}
+
+	/**
+	 * @param mixed $argument
+	 *
+	 * @return static
+	 */
+	protected function extra(string $kind, $argument = null)
+	{
+		return $this->state(function (array $attributes) use ($kind, $argument)
+		{
+			return ['extras' => array_merge($attributes['extras'] ?? [], [[$kind, $argument]])];
+		});
 	}
 
 	/**
@@ -140,6 +284,11 @@ class UserFactory extends AbstractFactory
 			$described['fields'] = $fields;
 		}
 
+		if (isset(self::$extras[$entity]))
+		{
+			$described['has'] = array_values(array_unique(array_column(self::$extras[$entity], 0)));
+		}
+
 		return $described;
 	}
 
@@ -193,7 +342,16 @@ class UserFactory extends AbstractFactory
 		}
 
 		$fields = $attributes['fields'] ?? [];
-		unset($attributes['fields']);
+		$extras = $attributes['extras'] ?? [];
+		unset($attributes['fields'], $attributes['extras']);
+
+		foreach ($extras AS [$kind, $argument])
+		{
+			if ($kind === 'connected' && !\XF::em()->find('XF:ConnectedAccountProvider', $argument))
+			{
+				throw new \InvalidArgumentException("This forum has no connected account provider '{$argument}'");
+			}
+		}
 
 		$this->fill($user, $attributes);
 
@@ -229,6 +387,12 @@ class UserFactory extends AbstractFactory
 			}
 		}
 
+		if ($extras)
+		{
+			self::$extras = self::$extras ?? new \WeakMap();
+			self::$extras[$user] = $extras;
+		}
+
 		[$scheme, $data] = self::hash($this->context()->password);
 		$user->Auth->bulkSet(['scheme_class' => $scheme, 'data' => $data]);
 		$user->Profile->password_date = $user->register_date;
@@ -242,6 +406,131 @@ class UserFactory extends AbstractFactory
 
 		// saved, so the database is what says the name is taken from here on
 		unset(self::$taken[strtolower($entity->username)]);
+
+		try
+		{
+			foreach (self::$extras[$entity] ?? [] AS [$kind, $argument])
+			{
+				$this->give($entity, $kind, $argument instanceof \Closure ? $argument() : $argument);
+			}
+		}
+		catch (\Throwable $e)
+		{
+			// the member is saved and not yet recorded: left now, nothing would ever remove them
+			static::remove($entity);
+
+			throw $e;
+		}
+	}
+
+	/**
+	 * One of the things a member has besides their own rows. Every date is given: left to its
+	 * column default each would be the moment the first of its kind was made in this run.
+	 *
+	 * None of these is recorded. They are the member's, and XenForo removes each with the member.
+	 *
+	 * @param mixed $argument
+	 */
+	protected function give(User $user, string $kind, $argument): void
+	{
+		$em = \XF::em();
+		$db = \XF::db();
+		$when = max($user->register_date, min($user->last_activity, time()));
+		// from the range set aside for testing, which no visitor can come from
+		$address = '198.18.' . mt_rand(0, 255) . '.' . mt_rand(1, 254);
+		$ip = \XF\Util\Ip::stringToBinary($address, false);
+
+		switch ($kind)
+		{
+			case 'connected':
+				$account = $em->create('XF:UserConnectedAccount');
+				$account->bulkSet(['user_id' => $user->user_id, 'provider' => $argument, 'provider_key' => (string) mt_rand(10 ** 14, 10 ** 15)]);
+				$account->save();
+				break;
+
+			case 'two_step':
+				\XF::repository(TfaRepository::class)->enableUserTfaProvider($user, $em->find('XF:TfaProvider', 'totp'), [
+					'secret' => substr(\Base32\Base32::encode(random_bytes(16)), 0, 16),
+				]);
+				$db->update('xf_user_tfa', ['last_used_date' => $when], 'user_id = ?', $user->user_id);
+				break;
+
+			case 'passkey':
+				$passkey = $em->create('XF:Passkey');
+				$passkey->bulkSet([
+					'user_id' => $user->user_id, 'name' => 'Seeded passkey',
+					'credential_id' => rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='),
+					'credential_public_key' => "-----BEGIN PUBLIC KEY-----\nseeded: not a key\n-----END PUBLIC KEY-----\n",
+					// the model of authenticator; all zeroes is what one that will not say reports
+					'aaguid' => str_repeat('0', 32),
+					'create_date' => $when, 'create_ip_address' => $ip,
+				]);
+				$passkey->save();
+				// XenForo lists the passkey among the member's two-step methods at the end of the request
+				\XF::triggerRunOnce();
+				$db->update('xf_user_tfa', ['last_used_date' => $when], 'user_id = ?', $user->user_id);
+				break;
+
+			case 'remember':
+				$remember = $em->create('XF:UserRemember');
+				$remember->generateForUserId($user->user_id);
+				$remember->bulkSet(['start_date' => $when, 'expiry_date' => time() + 28 * 86400]);
+				$remember->save();
+				break;
+
+			case 'confirmation':
+				$confirmation = $em->create('XF:UserConfirmation');
+				$confirmation->bulkSet(['user_id' => $user->user_id, 'confirmation_type' => 'email']);
+				$confirmation->regenerateKey();
+				$confirmation->confirmation_date = $user->register_date;
+				$confirmation->save();
+				break;
+
+			case 'login':
+				// through the entities, as everything is that other add-ons may have added columns to
+				$log = $em->create('XF:Ip');
+				$log->bulkSet([
+					'user_id' => $user->user_id, 'content_type' => 'user', 'content_id' => $user->user_id,
+					// this entity alone takes the address as text
+					'action' => 'login', 'ip' => $address, 'log_date' => $when,
+				]);
+				$log->save();
+
+				$online = $em->create('XF:SessionActivity');
+				$online->bulkSet([
+					'user_id' => $user->user_id, 'unique_key' => (string) $user->user_id, 'ip' => $ip,
+					'controller_name' => 'XF\\Pub\\Controller\\ForumController', 'controller_action' => 'List',
+					'view_state' => 'valid', 'view_date' => $when,
+				]);
+				$online->save();
+				break;
+
+			case 'alert':
+				$from = $argument ?: static::new()->create();
+				$alert = $em->create('XF:UserAlert');
+				$alert->bulkSet([
+					'alerted_user_id' => $user->user_id, 'user_id' => $from->user_id, 'username' => $from->username,
+					'content_type' => 'user', 'content_id' => $user->user_id, 'action' => 'following',
+					'event_date' => max($when, $from->register_date),
+				]);
+				$alert->save();
+				break;
+
+			case 'following':
+			case 'followed':
+				$other = $argument ?: static::new()->create();
+				[$follower, $followed] = $kind === 'following' ? [$user, $other] : [$other, $user];
+				$follow = $em->create('XF:UserFollow');
+				$follow->bulkSet([
+					'user_id' => $follower->user_id, 'follow_user_id' => $followed->user_id,
+					'follow_date' => max($user->register_date, $other->register_date, min($when, time())),
+				]);
+				$follow->save();
+				break;
+
+			default:
+				throw new \LogicException("Unknown '{$kind}'");
+		}
 	}
 
 	protected function clockFor(Entity $entity): ?int

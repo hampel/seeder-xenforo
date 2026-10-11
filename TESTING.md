@@ -33,6 +33,10 @@ needs a person.
 - **Media Gallery items** — a real PNG through the gallery's attachment handler, which makes the
   holding record and thumbnail; the item through its entity; albums through `XFMG:Album\Creator`.
   Files in `internal_data/attachments`, `data/attachments` and `data/xfmg`.
+- **Other ways into an account, and activity without content** — connected account, two-step,
+  passkey, remember key, confirmation, login IP, who-is-online, alert and follow rows, each through
+  its entity (two-step through XenForo's `TfaRepository`). None is recorded: XenForo's member
+  delete removes them all.
 - **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
   alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
   content is silenced first. Published to the news feed by hand, with the date corrected.
@@ -122,6 +126,11 @@ needs a person.
   delete leaves it. The album factory deletes the file itself.
 - **An album's thumbnail is dated by the real clock**, whatever the dates of its items. It is a
   cache-busting stamp, not a date anyone is shown.
+- **A member is saved before their extras are written, and recorded after.** A failure between the
+  two would leave a member nothing could remove, so the factory removes them itself. Found on
+  2026-10-11 as one stranded member.
+- **The passkey table's `aaguid` column is `NOT NULL`, 32 characters**, where the entity calls it
+  nullable.
 - **The content activity log is dated today**, whatever the content's date.
 - **Member names are the forum's to judge.** Length limits, the match pattern and the censor list
   all vary by forum, so the factory asks the entity and tries another name on a refusal.
@@ -189,6 +198,12 @@ For Resource Manager and Media Gallery: only what happens on a forum without the
 and seeder says so and creates nothing, a refusal is not logged as a server error, and the sample
 leaves both out. **Creating and removing their content is not covered by the suite**, which loads
 this add-on alone; see *Needs a human*.
+
+For account access: each way in writes the rows XenForo keeps for it, dated in the past, and sends
+nothing; a member active without content has the login, alert and follows and no content; a named
+member can be the other party; an unknown provider is refused before anyone is created; a member
+whose extras fail is removed, not left unrecorded; the seeder cleans back to its starting counts
+across thirteen tables.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are

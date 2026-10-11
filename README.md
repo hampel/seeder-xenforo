@@ -72,7 +72,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
-| `User` | members | `users` (20) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
@@ -115,9 +115,26 @@ UserFactory::new()
 | a preference, profile or privacy setting | `state(['Option.receive_admin_email' => true])`, `'Profile.location'`, `'Privacy.allow_view_profile'` |
 | awaiting approval, or unconfirmed | `->moderated()`, `->unconfirmed()` |
 | no email address at all | `->withoutEmail()` |
+| another way into the account | `->withConnectedAccount('google')`, `->withTwoStep()`, `->withPasskey()`, `->withRememberKey()`, `->withConfirmationPending()` |
+| a member who has used the forum without posting | `->activeWithoutContent()`, or its parts: `->withLogin()`, `->withAlert()`, `->following()`, `->followedBy()` |
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
 
 `is_moderator` sets the flag only: it creates no moderator record and grants no permissions.
+
+**The ways in are rows, not working credentials.** A connected account has a made-up id at the
+provider and no tokens; a passkey's key is not a key and can sign nothing; nobody holds the
+authenticator secret or the cookie that matches a remember key. They are for code that asks what a
+member has. `withConfirmationPending()` writes the confirmation row a registration leaves and
+sends no email; `unconfirmed()` alone sets the state and writes no row.
+
+**`activeWithoutContent()` is a member who has logged in, has an unread alert, follows someone and
+is followed**, and has never posted. The login is an IP log row and a who-is-online row from
+`198.18.0.0/15`, the range set aside for testing. The other party to the alert and both follows is
+one more member, created with them; `following($member)`, `followedBy($member)` and
+`withAlert($member)` take an existing one. A run's JSON lists what each member was given under
+`has`.
+
+None of these rows is recorded separately: they are the member's, and go when the member does.
 
 ### Forums, threads and replies
 
