@@ -3,6 +3,7 @@
 use Hampel\Seeder\Factory\AbstractBulkFactory;
 use Hampel\Seeder\Factory\AbstractFactory;
 use XF\Db\AbstractAdapter;
+use XF\Db\DeadlockException;
 use XF\Mvc\Entity\Entity;
 
 /**
@@ -15,6 +16,9 @@ use XF\Mvc\Entity\Entity;
 class Cleaner
 {
 	protected const CHUNK = 500;
+
+	/** how many times one removal is tried when it is the loser of a deadlock */
+	protected const ATTEMPTS = 3;
 
 	/**
 	 * @return array ['removed' => [shortName => int], 'missing' => [shortName => int],
@@ -143,7 +147,7 @@ class Cleaner
 		}
 	}
 
-	protected function cleanRecord(array $record, array &$result): void
+	protected function cleanRecord(array $record, array &$result, int $attempt = 1): void
 	{
 		$shortName = $record['entity'];
 		$db = \XF::db();
@@ -171,6 +175,17 @@ class Cleaner
 			while (self::transactionDepth($db) > $depth)
 			{
 				$db->rollback();
+			}
+
+			// A deadlock is somebody else writing the same rows at the same moment, and MySQL
+			// has already undone this removal whole - so it can simply be tried again. Only where
+			// this was the outermost transaction: inside someone else's, the deadlock ended theirs.
+			if ($e instanceof DeadlockException && $depth === 0 && $attempt < self::ATTEMPTS)
+			{
+				\XF::em()->clearEntityCache();
+				$this->cleanRecord($record, $result, $attempt + 1);
+
+				return;
 			}
 
 			// the record stays, so a later run can try again

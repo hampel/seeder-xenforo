@@ -287,6 +287,7 @@ class CommandsTest extends TestCase
 			'created' => ['XF:User' => 3, 'XF:Thread' => 8],
 			'seed_failure' => null,
 			'removed' => 11,
+			'gone' => 0,
 			'failed' => [],
 			'tables' => 280,
 			'leaks' => [],

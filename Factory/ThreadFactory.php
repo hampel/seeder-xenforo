@@ -2,6 +2,7 @@
 
 use Hampel\Seeder\Factory\Concerns\WritesPosts;
 use XF\Mvc\Entity\Entity;
+use XF\Repository\TagRepository;
 use XF\Service\Thread\CreatorService;
 
 /**
@@ -14,6 +15,7 @@ use XF\Service\Thread\CreatorService;
  *     message_parts   what a generated message contains - see the with...() states
  *     attachments     how many images to attach to the first post
  *     deleted         true to soft-delete it once posted; delete_reason and deleted_by go with it
+ *     tags            the names of tags to file it under - see withTags()
  */
 class ThreadFactory extends AbstractFactory
 {
@@ -30,6 +32,7 @@ class ThreadFactory extends AbstractFactory
 			'user_id' => UserFactory::new(),
 			'title' => $context->faker->threadTitle(),
 			'message_parts' => [],
+			'tags' => [],
 			'attachments' => 0,
 			'deleted' => false,
 			'delete_reason' => '',
@@ -109,6 +112,25 @@ class ThreadFactory extends AbstractFactory
 	}
 
 	/**
+	 * File it under these tags, as XenForo's own tagging does. A tag that does not exist yet is
+	 * made, and recorded, so it is removed with the batch; one that exists is used and left.
+	 *
+	 * Names are tidied the way XenForo tidies them - lower case, single spaces - so `Two  Words`
+	 * is the tag `two words`. A name the forum would not accept as a tag is refused.
+	 *
+	 * @param string[] $tags
+	 *
+	 * @return static
+	 */
+	public function withTags(array $tags)
+	{
+		return $this->state(function (array $attributes) use ($tags)
+		{
+			return ['tags' => array_merge($attributes['tags'] ?? [], array_values($tags))];
+		});
+	}
+
+	/**
 	 * @param int|Entity|PrefixFactory|null $prefix an existing prefix, or a new one if omitted
 	 *
 	 * @return static
@@ -122,12 +144,19 @@ class ThreadFactory extends AbstractFactory
 
 	public static function describe(Entity $entity): array
 	{
-		return [
+		$described = [
 			'title' => $entity->title,
 			'node_id' => $entity->node_id,
 			'user_id' => $entity->user_id,
 			'first_post_id' => $entity->first_post_id,
 		];
+
+		if ($entity->tags)
+		{
+			$described['tags'] = array_values(array_column($entity->tags, 'tag'));
+		}
+
+		return $described;
 	}
 
 	public static function remove(Entity $entity): void
@@ -168,7 +197,7 @@ class ThreadFactory extends AbstractFactory
 
 		$thread = $creator->getThread();
 		$own = array_diff_key($attributes, array_flip(
-			['node_id', 'user_id', 'title', 'message', 'message_parts', 'attachments', 'post_date',
+			['node_id', 'user_id', 'title', 'message', 'message_parts', 'tags', 'attachments', 'post_date',
 				'deleted', 'delete_reason', 'deleted_by']
 		));
 		$this->fill($thread, $own);
@@ -180,6 +209,7 @@ class ThreadFactory extends AbstractFactory
 			'title' => $attributes['title'],
 			'message' => $attributes['message'],
 			'attachments' => (int) $attributes['attachments'],
+			'tags' => (array) $attributes['tags'],
 			'deleted' => (bool) $attributes['deleted'],
 			'delete_reason' => $attributes['delete_reason'],
 			'deleted_by' => $attributes['deleted_by'],
@@ -212,6 +242,47 @@ class ThreadFactory extends AbstractFactory
 
 			$creator->save();
 		});
+
+		$this->tag($entity, $pending);
+	}
+
+	/**
+	 * Through the tag repository, not the thread creator: the creator only tags where the author
+	 * has permission to and the forum allows it, which a seeded member in a seeded forum may not.
+	 */
+	protected function tag(Entity $thread, array $pending): void
+	{
+		if (!$pending['tags'])
+		{
+			return;
+		}
+
+		$repo = \XF::repository(TagRepository::class);
+
+		$ids = [];
+		foreach ($pending['tags'] AS $name)
+		{
+			$name = $repo->normalizeTag((string) $name);
+			if (!$repo->isValidTag($name))
+			{
+				throw new \InvalidArgumentException("'{$name}' is not a tag this forum would accept");
+			}
+
+			$tag = \XF::em()->findOne('XF:Tag', ['tag' => $name]) ?: TagFactory::new()->create(['tag' => $name]);
+			$ids[$tag->tag_id] = $tag->tag_id;
+		}
+
+		static::silence($thread);
+		$repo->modifyContentTags('thread', $thread->thread_id, array_values($ids), [], $pending['author']->user_id);
+
+		// XenForo stamps a tag's last use with the real time; it is the latest date anything
+		// visible was filed under it
+		\XF::db()->query(
+			'UPDATE xf_tag SET last_use_date = (
+					SELECT COALESCE(MAX(add_date), 0) FROM xf_tag_content
+					WHERE xf_tag_content.tag_id = xf_tag.tag_id AND visible = 1
+				) WHERE tag_id IN (' . \XF::db()->quote(array_values($ids)) . ')'
+		);
 	}
 
 	protected function clockFor(Entity $entity): ?int

@@ -37,7 +37,7 @@ class RoundTripTest extends TestCase
 		$this->assertSame(5, $result['created']['XF:Warning']);
 		$this->assertSame(2, $result['created']['XF:WarningDefinition']);
 		$this->assertSame(1, $result['created']['XF:ThreadPrefix']);
-		$this->assertSame(array_sum($result['created']), $result['removed']);
+		$this->assertSame(array_sum($result['created']), $result['removed'] + $result['gone'], 'everything made is accounted for');
 		$this->assertSame([], $result['leaks']);
 		$this->assertSame([], $result['other']);
 		$this->assertGreaterThan(200, $result['tables']);

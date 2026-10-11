@@ -71,7 +71,7 @@ has still recorded what it made, exits 1, and says how to remove it.
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
@@ -127,7 +127,7 @@ ThreadFactory::new()
 | factory | builds | states |
 |---|---|---|
 | `ForumFactory` | a forum; the entity returned is its node | |
-| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)` |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])` |
 | `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)` |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
 | `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |
@@ -139,6 +139,13 @@ The `with...()` states add up: `->withQuote()->withList()` gives a first post wi
 is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no
 moderator log is written. Replies are dated after the post they follow and never before their
 author joined. Attachments are real PNG images. Links and images point at `example.com`.
+
+**Tags.** `withTags(['alpha', 'two words'])` files a thread under those tags as XenForo's own
+tagging does. A tag that does not exist is made, and removed with the batch; one that exists is
+used and left alone — though XenForo itself deletes any tag once nothing is filed under it, unless
+it is marked permanent. Names are tidied the way XenForo tidies them, and one the forum would not
+accept is refused. A run's JSON lists each tag it made with the form of it that goes in a URL
+(`two words` is `two-words`), and each thread with the tags it carries.
 
 **Content states.** `moderated()` posts the thread or reply as awaiting approval: it is in the
 approval queue and not counted. `deleted()` posts it, gives it whatever replies and reactions were
@@ -383,7 +390,9 @@ php cmd.php seeder:forget [batch]  # keep the content, discard the record of it
 `--force` skips the question, and without a terminal to answer the question nothing is deleted.
 
 It exits 0 when everything recorded is gone and 1 if anything could not be removed. Whatever
-could not be removed stays recorded, so the command can be run again.
+could not be removed stays recorded, so the command can be run again. A removal that loses a
+database deadlock, as happens when something else is writing the same rows, is tried again up to
+three times before it counts as failed.
 
 ### Exit codes
 

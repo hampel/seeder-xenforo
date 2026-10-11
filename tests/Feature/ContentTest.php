@@ -205,6 +205,63 @@ class ContentTest extends TestCase
 		$this->assertTrue($factory->sticky()->create()->sticky);
 	}
 
+	public function test_tags_are_made_when_new_used_when_they_exist_and_tidied_as_xenforo_tidies_them()
+	{
+		$recorder = $this->recordInto('test-tags');
+		$db = $this->app()->db();
+		$node = ForumFactory::new()->create();
+		$author = UserFactory::new()->create();
+		// permanent, as a tag an administrator keeps: XenForo deletes any other tag once nothing uses it
+		$existing = $this->app()->em()->create('XF:Tag');
+		$existing->bulkSet(['tag' => 'seedertest existing', 'permanent' => true]);
+		$existing->save();
+		$tags = (int) $db->fetchOne('SELECT COUNT(*) FROM xf_tag');
+
+		$thread = ThreadFactory::new()->for($node)->recycle($author)
+			->withTags(['Seedertest  Alpha', 'seedertest existing'])->withTags(['seedertest two words'])
+			->create(['post_date' => 1700005000]);
+
+		$this->assertSame($tags + 2, (int) $db->fetchOne('SELECT COUNT(*) FROM xf_tag'), 'two were new; the third was already there');
+		$this->assertDatabaseHas('xf_tag', ['tag' => 'seedertest alpha', 'tag_url' => 'seedertest-alpha', 'use_count' => 1, 'last_use_date' => 1700005000]);
+		$this->assertDatabaseHas('xf_tag', ['tag' => 'seedertest two words', 'tag_url' => 'seedertest-two-words']);
+		$this->assertDatabaseCount('xf_tag_content', 3, ['content_type' => 'thread', 'content_id' => $thread->thread_id]);
+		$this->assertDatabaseHas('xf_tag_content', [
+			'content_type' => 'thread', 'content_id' => $thread->thread_id, 'tag_id' => $existing->tag_id,
+			'add_user_id' => $author->user_id, 'add_date' => 1700005000, 'content_date' => 1700005000, 'visible' => 1,
+		]);
+
+		$cache = json_decode($db->fetchOne('SELECT tags FROM xf_thread WHERE thread_id = ?', $thread->thread_id), true);
+		$names = array_column($cache, 'tag');
+		sort($names);
+		$this->assertSame(['seedertest alpha', 'seedertest existing', 'seedertest two words'], $names);
+
+		$created = $recorder->created();
+		$this->assertSame(['id', 'tag', 'tag_url'], array_keys($created['XF:Tag'][0]));
+		$this->assertCount(2, $created['XF:Tag'], 'only the tags it made are recorded');
+		$described = end($created['XF:Thread']);
+		sort($described['tags']);
+		$this->assertSame($names, $described['tags']);
+
+		$result = (new Cleaner())->clean('test-tags');
+
+		$this->assertSame([], $result['failed']);
+		$this->assertDatabaseHas('xf_tag', ['tag_id' => $existing->tag_id], 'a tag that was there before is left');
+		$this->assertDatabaseMissing('xf_tag', ['tag' => 'seedertest alpha']);
+		$this->assertDatabaseCount('xf_tag_content', 0, ['content_type' => 'thread', 'content_id' => $thread->thread_id]);
+		$existing->delete();
+	}
+
+	public function test_a_name_the_forum_would_not_take_as_a_tag_is_refused()
+	{
+		$this->recordInto('test-tags-bad');
+		$this->setOption('tagLength', ['min' => 4, 'max' => 20]);
+
+		$this->expectException(\InvalidArgumentException::class);
+		$this->expectExceptionMessage("'ab' is not a tag this forum would accept");
+
+		ThreadFactory::new()->withTags(['ab'])->create();
+	}
+
 	public function test_a_prefix_has_a_title_phrase_and_is_offered_in_the_forums_named()
 	{
 		$this->recordInto('test-prefix');
@@ -360,6 +417,7 @@ class ContentTest extends TestCase
 			$this->assertCount(1, $created['XF:ThreadPrefix']);
 			$this->assertArrayNotHasKey('XF:Node', $created, 'the forum given was used; none was made');
 			$this->assertArrayNotHasKey('XF:ReactionContent', $created, 'reactions are only made when asked for');
+			$this->assertArrayNotHasKey('XF:Tag', $created, 'and so are tags');
 			$this->assertSame([$node->node_id], array_values(array_unique(array_column($created['XF:Thread'], 'node_id'))));
 			$this->assertSame(['id', 'title', 'node_id', 'user_id', 'first_post_id'], array_keys($created['XF:Thread'][0]));
 

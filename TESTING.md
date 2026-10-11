@@ -16,6 +16,9 @@ needs a person.
   entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
   with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
   files in `internal_data`. Removal deletes the entity, then any attachment files left unused.
+- **Tags** — made through the `Tag` entity and applied through XenForo's tag repository, not the
+  thread creator, which only tags where the author has permission. XenForo deletes a tag nobody
+  uses, so cleaning often finds seeded tags already gone.
 - **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
   alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
   content is silenced first. Published to the news feed by hand, with the date corrected.
@@ -124,6 +127,10 @@ reserved domains with no bare address; a prefix has its phrase and forum associa
 is a real PNG and its file is gone after cleaning; a seeded forum cleans back to its starting
 counts across eighteen tables with no alert, mail, watch, IP or moderator log row; a removal that
 fails mid-transaction is undone and the rest still happen.
+
+For tags: new ones are made and recorded, existing ones used and left, names tidied, dates taken
+from the thread, and a name the forum would not accept refused. For the cleaner: a removal that
+loses a deadlock is tried again, and after three tries its record is kept.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are

@@ -28,7 +28,8 @@ class RoundTrip
 	 *     'batch' => string,
 	 *     'created' => [shortName => int],
 	 *     'seed_failure' => string|null,
-	 *     'removed' => int, 'failed' => [...] as Cleaner::clean() reports them,
+	 *     'removed' => int, 'gone' => int how many XenForo had already removed itself,
+	 *     'failed' => [...] as Cleaner::clean() reports them,
 	 *     'tables' => int how many tables were compared,
 	 *     'leaks' => [table => [before, after]] XenForo's own tables that did not come back,
 	 *     'other' => [table => [before, after]] other add-ons' tables that differ,
@@ -60,6 +61,7 @@ class RoundTrip
 			'seed_failure' => $seeded['failure']
 				? get_class($seeded['failure']) . ': ' . strtok($seeded['failure']->getMessage(), "\n") : null,
 			'removed' => array_sum($cleaned['removed']),
+			'gone' => array_sum($cleaned['missing']),
 			'failed' => $cleaned['failed'],
 			'tables' => count($after),
 			'leaks' => $leaks,

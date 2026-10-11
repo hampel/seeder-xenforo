@@ -241,7 +241,9 @@ class Validate extends Command
 		}
 		else
 		{
-			$this->checkOk('cleaned', "{$result['removed']} removed");
+			// XenForo removes some things itself when the last use of them goes - a tag nobody uses
+			$this->checkOk('cleaned', "{$result['removed']} removed"
+				. (($result['gone'] ?? 0) ? ", {$result['gone']} already removed by XenForo" : ''));
 		}
 
 		if (!$result['leaks'])

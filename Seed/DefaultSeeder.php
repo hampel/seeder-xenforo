@@ -8,7 +8,7 @@ use Hampel\Seeder\Factory\UserFactory;
  * written by those members in those forums.
  *
  * Parameters: users (20), forums (2), and those of the Thread seeder - threads (12), replies (5),
- * prefix (1), reactions (0), states (0).
+ * prefix (1), reactions (0), tags (0), states (0).
  */
 class DefaultSeeder extends AbstractSeeder
 {
