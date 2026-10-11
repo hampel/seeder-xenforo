@@ -12,6 +12,7 @@ use XF\Util\Ip;
  *         ->robots(60000, 12, 0.8)       // across 12 networks, 80% of them in one
  *         ->robotKinds(40)               // drawn from 40 different robots, a few of them most
  *         ->actions(30)                  // doing 30 different things, most of them reading threads
+ *         ->robotsOn('Search::Results')  // nine robots in ten hammering one action
  *         ->ipv6(0.05)
  *         ->stale(0.1)
  *         ->create();
@@ -118,6 +119,9 @@ class SessionActivityFactory extends AbstractBulkFactory
 	/** @var int how many different controller and action pairs visitors are spread across */
 	protected $actions = self::DEFAULT_ACTIONS;
 
+	/** @var array|null [controller, action, view state, share] the one action most robots are on */
+	protected $robotFocus;
+
 	/** @var float */
 	protected $ipv6 = 0.0;
 
@@ -213,6 +217,36 @@ class SessionActivityFactory extends AbstractBulkFactory
 		return $factory;
 	}
 
+	/**
+	 * Put most of the robots on one action, as a swarm that is hammering one page is. The rest
+	 * are spread like everyone else.
+	 *
+	 * @param string $action a controller and action such as `Search::Results`, meaning
+	 *                       XF\Pub\Controller\SearchController::actionResults(); or a full class
+	 *                       name before the `::`, for a controller that is not XenForo's own
+	 * @param float $share the share of robots on it, 0 to 1
+	 *
+	 * @return static
+	 */
+	public function robotsOn(string $action, float $share = 0.9)
+	{
+		if (!preg_match('/^([A-Za-z0-9_\\\\]+)::([A-Za-z0-9_]+)$/', $action, $match))
+		{
+			throw new \InvalidArgumentException("'{$action}' is not an action: write it as Controller::Action, such as Search::Results");
+		}
+
+		$class = strpos($match[1], '\\') === false ? "XF\\Pub\\Controller\\{$match[1]}Controller" : ltrim($match[1], '\\');
+		if (!class_exists($class) || !method_exists($class, 'action' . $match[2]))
+		{
+			throw new \InvalidArgumentException("There is no action {$match[2]} on a controller {$class} on this forum");
+		}
+
+		$factory = clone $this;
+		$factory->robotFocus = [$class, $match[2], substr($class, -15) === 'ErrorController' ? 'error' : 'valid', self::share($share, 'share')];
+
+		return $factory;
+	}
+
 	public static function actionsKnown(): int
 	{
 		return count(self::ACTIVITY);
@@ -262,11 +296,11 @@ class SessionActivityFactory extends AbstractBulkFactory
 		$robotKeys = array_slice(self::robotKeys(), 0, $this->robotKinds);
 		foreach ($this->addresses($this->robots, 128) AS $ip)
 		{
-			yield $this->row(0, $ip, $ip, $robotKeys ? self::skewed($robotKeys) : 'unknown');
+			yield $this->row(0, $ip, $ip, $robotKeys ? self::skewed($robotKeys) : 'unknown', true);
 		}
 	}
 
-	protected function row(int $userId, string $uniqueKey, string $ip, string $robotKey): array
+	protected function row(int $userId, string $uniqueKey, string $ip, string $robotKey, bool $isRobot = false): array
 	{
 		$online = max(60, (int) \XF::options()->onlineStatusTimeout * 60);
 		$kept = max($online + 120, (int) \XF::app()->config()['sessionActivityExpiration']);
@@ -275,7 +309,14 @@ class SessionActivityFactory extends AbstractBulkFactory
 			? mt_rand($online + 1, $kept - 61)
 			: mt_rand(0, $online - 1);
 
-		[$controller, $action, , $state] = self::weighted(array_slice(self::ACTIVITY, 0, $this->actions), 2);
+		if ($isRobot && $this->robotFocus && mt_rand() / mt_getrandmax() < $this->robotFocus[3])
+		{
+			[$controller, $action, $state] = $this->robotFocus;
+		}
+		else
+		{
+			[$controller, $action, , $state] = self::weighted(array_slice(self::ACTIVITY, 0, $this->actions), 2);
+		}
 
 		return [
 			'user_id' => $userId,

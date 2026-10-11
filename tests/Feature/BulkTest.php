@@ -295,6 +295,73 @@ class BulkTest extends TestCase
 		}
 	}
 
+	/**
+	 * A swarm piles onto one page; everyone else carries on as usual.
+	 */
+	public function test_most_robots_can_be_put_on_one_action_while_guests_keep_the_usual_mix()
+	{
+		$this->recordInto('test-online-focus');
+		$db = $this->app()->db();
+		$on = "controller_name = 'XF\\\\Pub\\\\Controller\\\\SearchController' AND controller_action = 'Results'";
+		$robots = "user_id = 0 AND robot_key <> '' AND ORD(SUBSTRING(ip, 1, 1)) = 10";
+		$guests = "user_id = 0 AND robot_key = '' AND ORD(SUBSTRING(ip, 1, 1)) = 10";
+
+		SessionActivityFactory::new()->guests(2000, 4)->robots(2000, 4)->robotsOn('Search::Results', 0.9)->create();
+
+		$focused = (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE {$robots} AND {$on}");
+		$this->assertGreaterThan(1750, $focused);
+		$this->assertLessThan(1880, $focused);
+		$this->assertGreaterThan(5, (int) $db->fetchOne('SELECT COUNT(DISTINCT controller_name, controller_action) FROM ' . self::TABLE . " WHERE {$robots}"), 'the rest are spread');
+		$this->assertLessThan(200, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE {$guests} AND {$on}"), 'guests are not drawn in');
+		$this->assertSame(0, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . self::TABLE . " WHERE {$robots} AND {$on} AND view_state <> 'valid'"));
+	}
+
+	public function test_the_action_robots_are_put_on_has_to_exist()
+	{
+		$full = SessionActivityFactory::new()->robotsOn('XF\\Pub\\Controller\\ThreadController::Index', 1.0);
+		$this->assertInstanceOf(SessionActivityFactory::class, $full);
+
+		foreach (['Search', 'Search::NoSuchAction', 'NoSuchThing::Index', 'Search::Results::More', 'a b::c'] AS $bad)
+		{
+			try
+			{
+				SessionActivityFactory::new()->robotsOn($bad);
+				$this->fail("'{$bad}' was accepted");
+			}
+			catch (\InvalidArgumentException $e)
+			{
+				$this->addToAssertionCount(1);
+			}
+		}
+
+		$this->expectException(\InvalidArgumentException::class);
+		SessionActivityFactory::new()->robotsOn('Search::Results', 1.5);
+	}
+
+	public function test_the_online_seeder_takes_the_action_and_how_many_robots_are_on_it()
+	{
+		$tester = new CommandTester(new Run());
+		$code = $tester->execute(
+			['seeder' => 'Online', '--batch' => 'test-online-focus-seeder', '--param' => ['members=0', 'guests=0', 'robots=400', 'networks=2', 'ipv6=0', 'robot_action=Forum::Forum', 'robot_focus=100']],
+			['decorated' => false, 'capture_stderr_separately' => true]
+		);
+
+		$this->assertSame(0, $code, $tester->getErrorOutput());
+		$this->assertSame(400, (int) $this->app()->db()->fetchOne(
+			'SELECT COUNT(*) FROM ' . self::TABLE . " WHERE robot_key <> '' AND controller_name = 'XF\\\\Pub\\\\Controller\\\\ForumController' AND controller_action = 'Forum'"
+		));
+
+		$this->fakesErrors();
+		$tester = new CommandTester(new Run());
+		$code = $tester->execute(
+			['seeder' => 'Online', '--batch' => 'test-online-focus-bad', '--param' => ['members=3', 'robot_action=Nope::Index']],
+			['decorated' => false, 'capture_stderr_separately' => true]
+		);
+		$this->assertSame(1, $code);
+		$this->assertStringContainsString('There is no action Index on a controller', $tester->getErrorOutput());
+		$this->assertDatabaseCount('xf_hampel_seeder_record', 0, ['batch' => 'test-online-focus-bad'], 'refused before any member was made');
+	}
+
 	public function test_bad_shapes_are_refused()
 	{
 		foreach ([

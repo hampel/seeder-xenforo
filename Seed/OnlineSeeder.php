@@ -19,6 +19,9 @@ use Hampel\Seeder\Factory\UserFactory;
  *     robot_kinds how many different robots they are drawn from; a few take most of the rows (40)
  *     actions    how many different controller and action pairs visitors are spread across,
  *                commonest first; 1 to 45 (11)
+ *     robot_action  one action most of the robots are on, as Controller::Action - for example
+ *                Search::Results; none unless given
+ *     robot_focus the percentage of robots on that action (90)
  *     ipv6       the percentage of guests and robots with an IPv6 address (5)
  *     stale      the percentage of everyone seen too long ago to count as online (10)
  *
@@ -31,16 +34,23 @@ class OnlineSeeder extends AbstractSeeder
 		$networks = $this->count('networks', 20);
 		$top = $this->count('top', 0) / 100;
 
-		$members = $this->param('member_pool') ?? UserFactory::new()->count($this->count('members', 10))->create();
-
-		SessionActivityFactory::new()
-			->members($members)
+		// settle everything that was asked for before making anything, so a mistake in it leaves
+		// nothing behind
+		$factory = SessionActivityFactory::new()
 			->guests($this->count('guests', 100), $networks, $top)
 			->robots($this->count('robots', 200), $networks, $top)
 			->robotKinds(max(1, $this->count('robot_kinds', 40)))
 			->actions($this->count('actions', SessionActivityFactory::DEFAULT_ACTIONS))
 			->ipv6($this->count('ipv6', 5) / 100)
-			->stale($this->count('stale', 10) / 100)
-			->create();
+			->stale($this->count('stale', 10) / 100);
+
+		if ($this->param('robot_action') !== null)
+		{
+			$factory = $factory->robotsOn((string) $this->param('robot_action'), $this->count('robot_focus', 90) / 100);
+		}
+
+		$members = $this->param('member_pool') ?? UserFactory::new()->count($this->count('members', 10))->create();
+
+		$factory->members($members)->create();
 	}
 }
