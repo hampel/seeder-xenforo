@@ -113,6 +113,13 @@ case: no dependents, no side effects, pruned by XenForo within the hour.
 
 A bulk factory never overwrites: a key already in the table is skipped and not recorded.
 
+**Never point a bulk factory at a table other add-ons add columns to** - the member, profile,
+conversation and post tables above all. A multi-row insert names only the columns it knows. A
+column another add-on added without a default makes that insert fail outright (MySQL error 1364
+under strict mode), and which add-ons are installed differs from forum to forum. An entity save
+has the same exposure but XenForo's own code shares it, so such a column gets found and fixed; a
+bulk insert of ours would be the only thing broken.
+
 ## Tests that create content
 
 **They run against the real database inside a transaction, and three things end that transaction
