@@ -196,6 +196,41 @@ class ErrorLogTest extends TestCase
 		$this->assertSame($before, (int) $db->fetchOne('SELECT COUNT(*) FROM xf_error_log'));
 	}
 
+	/**
+	 * A job's class fails in jobs and a template fails on a page. With origin drawn apart from
+	 * the fault, every fault had the same mix and a breakdown by origin said nothing.
+	 */
+	public function test_each_fault_comes_mostly_from_where_it_would()
+	{
+		$this->recordInto('test-errors-usual');
+		$db = $this->app()->db();
+		$entries = ErrorLogFactory::new()->count(1500)->create();
+		$mine = $db->quote(array_values($entries->pluckNamed('error_id')));
+
+		$share = function (string $files, string $origin) use ($db, $mine)
+		{
+			$is = ['job' => "trace_string LIKE '%src/XF/Job/Manager.php(%'",
+				'cli' => "request_state LIKE '{\"cli\":%'",
+				'web' => "request_state LIKE '{\"url\":%' AND trace_string NOT LIKE '%src/XF/Job/Manager.php(%'"][$origin];
+			$all = (int) $db->fetchOne("SELECT COUNT(*) FROM xf_error_log WHERE error_id IN ({$mine}) AND filename LIKE ?", $files);
+			$this->assertGreaterThan(0, $all, "no entries in {$files}");
+
+			return (int) $db->fetchOne("SELECT COUNT(*) FROM xf_error_log WHERE error_id IN ({$mine}) AND filename LIKE ? AND {$is}", $files) / $all;
+		};
+
+		$this->assertGreaterThan(0.75, $share('src/addons/%/Job/Process.php', 'job'));
+		$this->assertLessThan(1.0, $share('src/addons/%/Job/Process.php', 'job'), 'but not every time');
+		$this->assertGreaterThan(0.75, $share('src/addons/%/Cli/Command/Import.php', 'cli'));
+		$this->assertGreaterThan(0.75, $share('src/addons/%/Service/Sync.php', 'web'));
+		$this->assertEquals(1.0, $share('internal_data/code_cache/templates/%', 'web'), 'a template is only ever rendered for a page');
+
+		// asking for an origin still gets it, whatever the fault
+		$this->assertStringStartsWith('{"cli":', $db->fetchOne(
+			'SELECT request_state FROM xf_error_log WHERE error_id = ?', ErrorLogFactory::new()->inTemplate()->cli()->create()->error_id
+		));
+		$this->assertStringContainsString('src/XF/Job/Manager.php(', ErrorLogFactory::new()->inAddOn('Vendor/AddOn')->job()->create()->trace_string);
+	}
+
 	public function test_the_seeder_names_members_on_some_entries_and_tells_who_will_read_them()
 	{
 		$tester = new CommandTester(new Run());

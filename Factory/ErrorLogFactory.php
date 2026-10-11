@@ -9,11 +9,12 @@ use XF\Mvc\Entity\Entity;
  *
  * By default each entry is drawn from a pool of made-up faults - in installed add-ons, in
  * XenForo itself, in a template - with a few of them accounting for most entries, as in a real
- * log, and from a mix of origins: a page view, a command, a job.
+ * log. Each fault comes mostly from where it would: a job's class from jobs, a template from a
+ * page view, and now and then from somewhere else.
  *
  * Besides the entry's columns, the attributes are:
  *
- *     signature   the fault: [type, file, line, message, class, method]
+ *     signature   the fault: [type, file, line, message, class, method, usual origin, how usual]
  *     origin      web, cli, job or unknown - which decides the request state and the trace
  *
  * **No entry is ever dated inside the quiet period before now** (two hours unless set). Things
@@ -62,9 +63,9 @@ class ErrorLogFactory extends AbstractFactory
 			{
 				return self::drawn();
 			},
-			'origin' => function ()
+			'origin' => function (array $attributes)
 			{
-				return self::weighted(self::ORIGINS);
+				return self::originOf($attributes['signature']);
 			},
 			'exception_date' => function () use ($context)
 			{
@@ -131,7 +132,7 @@ class ErrorLogFactory extends AbstractFactory
 	{
 		return $this->state(['signature' => ['XF\Db\Exception', 'src/XF/Db/AbstractStatement.php', 225,
 			'MySQL query error [1213]: Deadlock found when trying to get lock; try restarting transaction',
-			'XF\Db\AbstractStatement', 'getException']]);
+			'XF\Db\AbstractStatement', 'getException', 'web', 0.7]]);
 	}
 
 	/**
@@ -145,7 +146,7 @@ class ErrorLogFactory extends AbstractFactory
 	{
 		// a different line for each level, so that two levels are two faults and not one
 		return $this->state(['signature' => ['ErrorException', 'src/XF/Mvc/Entity/Entity.php', 200 + crc32($level) % 400,
-			"[{$level}] Undefined array key \"example\"", 'XF\Mvc\Entity\Entity', 'get']]);
+			"[{$level}] Undefined array key \"example\"", 'XF\Mvc\Entity\Entity', 'get', 'web', 0.85]]);
 	}
 
 	/**
@@ -155,7 +156,7 @@ class ErrorLogFactory extends AbstractFactory
 	{
 		return $this->state(['signature' => ['ErrorException', 'src/XF/Mvc/Entity/Finder.php', 1432,
 			'Fatal Error: Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes)',
-			'XF\Mvc\Entity\Finder', 'fetch']]);
+			'XF\Mvc\Entity\Finder', 'fetch', 'cli', 0.7]]);
 	}
 
 	/**
@@ -174,7 +175,7 @@ class ErrorLogFactory extends AbstractFactory
 		}
 
 		return $this->state(['signature' => ['ErrorException', "internal_data/code_cache/templates/l1/s0/{$type}/{$title}.php", 87,
-			"Template error: [{$level}] Undefined array key \"example\"", 'XF\Template\Templater', '{closure}']]);
+			"Template error: [{$level}] Undefined array key \"example\"", 'XF\Template\Templater', '{closure}', 'web', 1.0]]);
 	}
 
 	/**
@@ -188,7 +189,7 @@ class ErrorLogFactory extends AbstractFactory
 		$namespace = str_replace('/', '\\', $addOnId);
 
 		return $this->state(['signature' => ['Error', 'src/XF/Extension.php', 174,
-			"Class \"{$namespace}\\XF\\Entity\\User\" not found", 'XF\Extension', 'extendClass']]);
+			"Class \"{$namespace}\\XF\\Entity\\User\" not found", 'XF\Extension', 'extendClass', 'web', 0.85]]);
 	}
 
 	/**
@@ -201,7 +202,7 @@ class ErrorLogFactory extends AbstractFactory
 	{
 		return $this->state(['signature' => ['ErrorException', 'src/XF/ComposerAutoload.php', 91,
 			"[E_WARNING] require(src/addons/{$addOnId}/vendor/composer/autoload_files.php): Failed to open stream: No such file or directory",
-			'XF\ComposerAutoload', 'autoloadFiles']]);
+			'XF\ComposerAutoload', 'autoloadFiles', 'web', 0.85]]);
 	}
 
 	/**
@@ -210,7 +211,7 @@ class ErrorLogFactory extends AbstractFactory
 	public function outside()
 	{
 		return $this->state(['signature' => ['RuntimeException', '/usr/share/php/Example/Library.php', 44,
-			'The library could not be initialised', 'Example\Library', 'boot']]);
+			'The library could not be initialised', 'Example\Library', 'boot', 'cli', 0.9]]);
 	}
 
 	public static function describe(Entity $entity): array
@@ -234,6 +235,33 @@ class ErrorLogFactory extends AbstractFactory
 		}
 
 		$entity->save();
+	}
+
+	/**
+	 * Where an entry for this fault came from: usually where the fault lives, and otherwise drawn
+	 * from the general mix - a job's code is also run by hand now and then.
+	 */
+	private static function originOf(array $signature): string
+	{
+		$usual = $signature[6] ?? null;
+		$howUsual = $signature[7] ?? 0.85;
+
+		if ($usual === null)
+		{
+			return self::weighted(self::ORIGINS);
+		}
+		if ($howUsual >= 1.0)
+		{
+			return $usual;
+		}
+
+		// now and then XenForo records nothing it can be told by, whatever the fault
+		if (mt_rand(1, 100) <= 3)
+		{
+			return 'unknown';
+		}
+
+		return mt_rand() / mt_getrandmax() < $howUsual ? $usual : self::weighted(self::ORIGINS);
 	}
 
 	/**
@@ -305,6 +333,10 @@ class ErrorLogFactory extends AbstractFactory
 			$pool[] = self::addOnFault($addOnId, 'Service/Sync', mt_rand(20, 400));
 			$pool[] = self::addOnFault($addOnId, 'Job/Process', mt_rand(20, 400), 'ErrorException', '[E_WARNING] Undefined array key "status"');
 		}
+		if ($chosen)
+		{
+			$pool[] = self::addOnFault($chosen[0], 'Cli/Command/Import', mt_rand(20, 400), 'RuntimeException', 'The import file could not be read');
+		}
 
 		// a page template: a stylesheet is an unlikely place for an undefined array key
 		$templates = \XF::db()->fetchAllColumn(
@@ -341,8 +373,11 @@ class ErrorLogFactory extends AbstractFactory
 			throw new \InvalidArgumentException("'{$addOnId}' is not an add-on id");
 		}
 
+		// a job's class is run by the job queue, a command's by the command line, the rest by pages
+		$usual = strpos($class, 'Job/') === 0 ? 'job' : (strpos($class, 'Cli/') === 0 ? 'cli' : 'web');
+
 		return [$type, "src/addons/{$addOnId}/{$class}.php", $line, $message,
-			str_replace('/', '\\', $addOnId . '/' . $class), 'run'];
+			str_replace('/', '\\', $addOnId . '/' . $class), 'run', $usual, 0.85];
 	}
 
 	/**

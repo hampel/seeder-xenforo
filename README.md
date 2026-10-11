@@ -282,6 +282,8 @@ finds, after a clean, that the log now ends before that id. It may take that for
 and forward every real entry again. Clean a seeded error log before such a reader has run, or
 expect one replay.
 
+Each fault comes mostly from where it would — a job's class from the job queue, a command's from
+the command line, a template only ever from a page view — and occasionally from elsewhere.
 An origin is recorded the way XenForo records one: a page view's address and input, a command
 line, and for a job the job manager's frame in the stack trace.
 
