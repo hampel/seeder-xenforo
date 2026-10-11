@@ -19,6 +19,8 @@ First release.
   removes one and `seeder:forget` keeps the content and discards the record
 - content is dated across a span of time and not all at the moment it was made, and a run given
   a `--seed` produces the same content again
+- a parameter no seeder asks for fails the run and is named, so a mistyped one is not silently
+  dropped
 - nothing a seeded entity does leaves the forum: no mail, alerts, push notifications, webhooks or
   moderator log entries
 - nothing runs until `$config['hampelSeeder']['enabled'] = true;` is in `config.php`

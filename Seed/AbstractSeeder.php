@@ -14,6 +14,9 @@ abstract class AbstractSeeder
 	/** @var array */
 	protected $params;
 
+	/** @var array<string, true> every parameter name any seeder has asked for since the last reset */
+	private static $asked = [];
+
 	final public function __construct(array $params = [])
 	{
 		$this->params = $params;
@@ -51,10 +54,29 @@ abstract class AbstractSeeder
 	}
 
 	/**
+	 * Which of these parameter names no seeder has asked for since the last call. A name nobody
+	 * asked for had no effect on what was made - mistyped, or not one this seeder takes - and
+	 * whoever gave it should be told.
+	 *
+	 * @param string[] $names
+	 *
+	 * @return string[]
+	 */
+	public static function neverAskedFor(array $names): array
+	{
+		$unused = array_values(array_diff($names, array_keys(self::$asked)));
+		self::$asked = [];
+
+		return $unused;
+	}
+
+	/**
 	 * @return mixed
 	 */
 	protected function param(string $name, $default = null)
 	{
+		self::$asked[$name] = true;
+
 		return $this->params[$name] ?? $default;
 	}
 

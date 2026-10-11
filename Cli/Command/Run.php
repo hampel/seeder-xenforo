@@ -84,6 +84,7 @@ class Run extends Command
 		$created = $result['created'];
 		$counts = $result['counts'];
 		$failure = $result['failure'];
+		$ignored = $result['ignored'];
 		$password = $result['password'];
 
 		$output->writeln(json_encode([
@@ -92,6 +93,7 @@ class Run extends Command
 			'seed' => $seed,
 			'password' => $password,
 			'complete' => $failure === null,
+			'ignored' => $ignored,
 			'counts' => $counts,
 			'created' => $created,
 		], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -125,6 +127,19 @@ class Run extends Command
 		if ($batch !== null)
 		{
 			$errors->writeln("  batch    {$batch}");
+		}
+
+		if ($ignored)
+		{
+			// the forum does not hold what was asked for, and only an exit code stops a script
+			$errors->writeln('<error>Given and not used: ' . implode(', ', $ignored)
+				. '. This seeder takes no such parameter, or took no notice of it with the others given.</error>');
+			if ($batch !== null && $counts)
+			{
+				$errors->writeln("Everything else was made and is recorded. Remove it with: seeder:clean {$batch}");
+			}
+
+			return 1;
 		}
 
 		return 0;

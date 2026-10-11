@@ -5,6 +5,7 @@ use Hampel\Seeder\Config;
 use Hampel\Seeder\Context;
 use Hampel\Seeder\Factory\ErrorLogFactory;
 use Hampel\Seeder\NullRecorder;
+use Hampel\Seeder\Seed\AbstractSeeder;
 use Hampel\Seeder\Timeline;
 
 /**
@@ -19,8 +20,9 @@ class SeedRunner
 	 * @param string|null $batch the batch to record under, or null to record nothing
 	 *
 	 * @return array ['created' => [shortName => [...]], 'counts' => [shortName => int],
-	 *               'failure' => \Throwable|null, 'password' => string] - counts includes rows written
-	 *               in bulk, which created does not list
+	 *               'failure' => \Throwable|null, 'ignored' => string[], 'password' => string] -
+	 *               counts includes rows written in bulk, which created does not list; ignored is
+	 *               the parameters given that no seeder asked for
 	 */
 	public function run(string $class, array $params, Timeline $timeline, ?int $seed, ?string $batch): array
 	{
@@ -33,9 +35,13 @@ class SeedRunner
 		$failure = null;
 		$jobs = new JobDrain();
 		$jobs->start();
+		AbstractSeeder::neverAskedFor([]);
 		try
 		{
-			(new $class($params))->run();
+			$seeder = new $class($params);
+			// asked for here too: a parameter that only changes what a seeder warns of was still used
+			$seeder->notices();
+			$seeder->run();
 		}
 		catch (\Throwable $e)
 		{
@@ -51,6 +57,8 @@ class SeedRunner
 			'created' => $recorder->created(),
 			'counts' => $recorder->counts(),
 			'failure' => $failure,
+			// a run that stopped part-way never reached the rest of its parameters
+			'ignored' => $failure === null ? AbstractSeeder::neverAskedFor(array_map('strval', array_keys($params))) : [],
 			'password' => $password,
 		];
 	}

@@ -210,6 +210,11 @@ and seeder says so and creates nothing, a refusal is not logged as a server erro
 leaves both out. **Creating and removing their content is not covered by the suite**, which loads
 this add-on alone; see *Needs a human*.
 
+For parameters: one that no seeder asks for exits 1, is named in the JSON and on standard error,
+and leaves what was understood made and recorded; one that only a called seeder asks for is not
+reported; one run's parameters do not excuse the next run's; a run that fails reports the failure
+and no ignored parameters.
+
 For account access: each way in writes the rows XenForo keeps for it, dated in the past, and sends
 nothing; a member active without content has the login, alert and follows and no content; a named
 member can be the other party; an unknown provider is refused before anyone is created; a member

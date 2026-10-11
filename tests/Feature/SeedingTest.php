@@ -386,6 +386,61 @@ class SeedingTest extends TestCase
 		$this->assertSame(['XF:CaptchaQuestion' => 2], $cleaned['removed']);
 	}
 
+	/**
+	 * A parameter nothing reads changed nothing, so the forum does not hold what was asked for.
+	 */
+	public function test_a_parameter_no_seeder_asks_for_exits_one_and_is_named()
+	{
+		[$code, $json, $summary] = $this->run_([
+			'seeder' => QuestionSeeder::class, '--param' => ['questions=2', 'moderated=5', 'qestions=9'], '--batch' => 'test-ignored',
+		]);
+
+		$this->assertSame(1, $code);
+		$result = json_decode($json, true);
+		$this->assertSame(['moderated', 'qestions'], $result['ignored']);
+		$this->assertTrue($result['complete'], 'the seeder itself did not fail');
+		$this->assertCount(2, $result['created']['XF:CaptchaQuestion'], 'what was understood was still made');
+		$this->assertStringContainsString('Given and not used: moderated, qestions', $summary);
+		$this->assertStringContainsString('seeder:clean test-ignored', $summary);
+		$this->assertDatabaseCount(self::RECORDS, 2, ['batch' => 'test-ignored']);
+	}
+
+	public function test_a_run_whose_parameters_were_all_asked_for_ignores_none()
+	{
+		[$code, $json] = $this->run_(['seeder' => QuestionSeeder::class, '--param' => ['questions=1'], '--batch' => 'test-none-ignored']);
+
+		$this->assertSame(0, $code);
+		$this->assertSame([], json_decode($json, true)['ignored']);
+	}
+
+	public function test_a_parameter_only_a_called_seeder_asks_for_is_not_ignored()
+	{
+		[$code, $json, $summary] = $this->run_(['seeder' => CallingSeeder::class, '--param' => ['questions=2'], '--batch' => 'test-called']);
+
+		$this->assertSame(0, $code, $summary);
+		$this->assertSame([], json_decode($json, true)['ignored']);
+	}
+
+	public function test_one_runs_parameters_do_not_excuse_the_next_runs()
+	{
+		$this->run_(['seeder' => QuestionSeeder::class, '--param' => ['questions=1'], '--batch' => 'test-first']);
+		[$code, $json] = $this->run_(['seeder' => CallingSeeder::class, '--param' => ['fail=0', 'nonsense=1'], '--batch' => 'test-second']);
+
+		$this->assertSame(1, $code);
+		$this->assertSame(['nonsense'], json_decode($json, true)['ignored']);
+	}
+
+	public function test_a_run_that_fails_reports_the_failure_and_no_ignored_parameters()
+	{
+		$this->fakesErrors();
+
+		[$code, $json, $summary] = $this->run_(['seeder' => QuestionSeeder::class, '--param' => ['fail=1', 'nonsense=1'], '--batch' => 'test-fail-ignored']);
+
+		$this->assertSame(1, $code);
+		$this->assertSame([], json_decode($json, true)['ignored'], 'it never got far enough to say what it would have used');
+		$this->assertStringNotContainsString('Given and not used', $summary);
+	}
+
 	public function test_no_record_creates_content_and_records_nothing()
 	{
 		$before = $this->counts(['xf_captcha_question', self::RECORDS]);

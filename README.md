@@ -65,6 +65,11 @@ Everything a run creates is recorded under its batch, as it is created. From PHP
 holds, in the order it was made. A run that fails part-way
 has still recorded what it made, exits 1, and says how to remove it.
 
+**A parameter no seeder asks for fails the run.** A mistyped name, or one this seeder does not
+take, changes nothing, so the forum would not hold what was asked for. The run makes everything
+else, lists the names under `ignored` in its JSON and on standard error, and exits 1. A parameter
+that is only overridden by another you gave is reported the same way.
+
 ### Seeders
 
 `seeder:run` takes the name of a seeder, and runs `Default` without one.
