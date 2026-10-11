@@ -146,6 +146,9 @@ class ErrorLogTest extends TestCase
 
 		$this->assertStringStartsWith('/', $factory->outside()->create()->filename);
 
+		$drawn = array_unique($factory->count(300)->make()->pluckNamed('filename'));
+		$this->assertSame([], preg_grep('/\.(less|css)\.php$/', $drawn), 'template errors are in page templates, not stylesheets');
+
 		$named = $factory->forUser($member)->create();
 		$this->assertSame($member->user_id, $named->user_id);
 		$this->assertSame(0, $factory->cli()->create()->user_id);

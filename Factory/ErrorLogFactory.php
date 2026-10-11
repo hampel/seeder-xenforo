@@ -306,7 +306,11 @@ class ErrorLogFactory extends AbstractFactory
 			$pool[] = self::addOnFault($addOnId, 'Job/Process', mt_rand(20, 400), 'ErrorException', '[E_WARNING] Undefined array key "status"');
 		}
 
-		$templates = \XF::db()->fetchAllColumn("SELECT title FROM xf_template WHERE type = 'public' AND style_id = 0 ORDER BY title LIMIT 400");
+		// a page template: a stylesheet is an unlikely place for an undefined array key
+		$templates = \XF::db()->fetchAllColumn(
+			"SELECT title FROM xf_template WHERE type = 'public' AND style_id = 0
+				AND title NOT LIKE '%.less' AND title NOT LIKE '%.css' ORDER BY title LIMIT 400"
+		);
 		$real = $templates ? $templates[mt_rand(0, count($templates) - 1)] : 'thread_view';
 
 		$one = new static();

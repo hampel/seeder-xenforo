@@ -388,6 +388,7 @@ class ContentTest extends TestCase
 
 		$this->assertSame(1, $code);
 		$this->assertStringContainsString("must be the node id of a forum", $summary);
+		$this->assertNoExceptionsLogged();
 	}
 
 	private function question(): Entity

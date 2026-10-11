@@ -62,6 +62,9 @@ needs a person.
   they appear, and it rests on such a thing looking only at recent entries. Anything that selects
   by row id, or by a longer window, reports them. Known readers are named in
   `Seed\ErrorLogSeeder::READERS`; add to it when another turns up.
+- **Cleaning seeded error log entries lowers the log's highest id.** A reader that keeps the id
+  of the last entry it forwarded then holds one past the end of the table. One was seen, on
+  2026-10-11, to treat that as an emptied log and be due to forward every real entry again.
 - **A guest's who-is-online row is keyed by its address.** A seeded row at a real visitor's address
   would replace theirs and then be deleted with the batch. Addresses come from reserved ranges,
   and a key already present is left alone.

@@ -277,6 +277,11 @@ the days they are dated in, or anything that forwards every entry it has not see
 names each such add-on it finds active before it creates anything, and `seeder:validate` warns of
 them. Cleaning removes the entries from the log; it cannot recall what was already sent.
 
+**Cleaning can itself set a reader off.** One that remembers the id of the last entry it forwarded
+finds, after a clean, that the log now ends before that id. It may take that for an emptied log
+and forward every real entry again. Clean a seeded error log before such a reader has run, or
+expect one replay.
+
 An origin is recorded the way XenForo records one: a page view's address and input, a command
 line, and for a job the job manager's frame in the stack trace.
 

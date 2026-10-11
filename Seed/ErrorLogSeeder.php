@@ -25,7 +25,7 @@ class ErrorLogSeeder extends AbstractSeeder
 	 */
 	private const READERS = [
 		'Hampel/LogDigest' => 'seeded errors dated inside its window will be in the next digest it sends',
-		'Hampel/EventLogging' => 'every seeded error will be forwarded to its log channel on its next run, and on to wherever that channel sends errors',
+		'Hampel/EventLogging' => 'every seeded error will be forwarded to its log channel on its next run, and on to wherever that channel sends errors; and cleaning entries it has already forwarded makes it send the whole real log again, once',
 	];
 
 	public function run()

@@ -107,7 +107,12 @@ class Run extends Command
 
 		if ($failure)
 		{
-			\XF::logException($failure, false, 'Seeder: seeder:run - ');
+			// a refused parameter is a mistake in what was asked for, not a fault on the forum, and
+			// has no business in its server error log
+			if (!$failure instanceof \InvalidArgumentException)
+			{
+				\XF::logException($failure, false, 'Seeder: seeder:run - ');
+			}
 			$errors->writeln('<error>The seeder failed: ' . get_class($failure) . ': ' . $failure->getMessage() . '</error>');
 			if ($batch !== null && $counts)
 			{
