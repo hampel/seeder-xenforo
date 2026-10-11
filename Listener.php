@@ -32,12 +32,11 @@ class Listener
 
 		$records = array_sum(array_column($batches, 'records'));
 
-		throw new PrintableException(
-			'Seeder was not uninstalled: this forum still holds ' . $records . ' seeded record(s) in '
-			. count($batches) . ' batch(es), and uninstalling would leave that content with no way to remove it. '
-			. 'First run "php cmd.php seeder:clean" to delete the seeded content, '
-			. 'or "php cmd.php seeder:forget" to keep the content and discard the records. Then uninstall again.'
-		);
+		// a phrase, since an administrator who uninstalls from the control panel is shown it there
+		throw new PrintableException(\XF::phrase('hampel_seeder_not_uninstalled_x_records_in_y_batches', [
+			'records' => $records,
+			'batches' => count($batches),
+		]));
 	}
 
 	/**

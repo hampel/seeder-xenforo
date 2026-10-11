@@ -60,6 +60,64 @@ class UninstallTest extends TestCase
 	}
 
 	/**
+	 * Through XenForo's own preUninstall(), which marks the add-on as processing, rebuilds the
+	 * listener and extension caches without it, and only then fires the event. A listener that
+	 * simply threw would leave the add-on stuck there: listed as processing, its listeners and
+	 * class extensions out of the caches, and neither usable nor uninstallable.
+	 */
+	public function test_xenforos_own_uninstall_is_refused_and_leaves_the_add_on_as_it_was()
+	{
+		$this->record('test-uninstall-real');
+		$db = $this->app()->db();
+		$before = $db->fetchRow("SELECT active, is_processing, last_pending_action, version_id FROM xf_addon WHERE addon_id = 'Hampel/Seeder'");
+		$addOn = $this->app()->addOnManager()->getById('Hampel/Seeder');
+
+		try
+		{
+			$addOn->preUninstall();
+			$this->fail('the uninstall was allowed');
+		}
+		catch (PrintableException $e)
+		{
+			$this->assertStringContainsString('Seeder was not uninstalled', $e->getMessage(), 'the phrase resolved');
+			// the forum's real batches are counted too, so the numbers are whatever they are
+			$this->assertMatchesRegularExpression('/holds \d+ seeded record\(s\) in \d+ batch\(es\)/', $e->getMessage());
+			$this->assertStringNotContainsString('{records}', $e->getMessage());
+		}
+
+		$this->assertSame($before, $db->fetchRow("SELECT active, is_processing, last_pending_action, version_id FROM xf_addon WHERE addon_id = 'Hampel/Seeder'"));
+		$this->assertSame('1', (string) $before['active']);
+		$this->assertSame('0', (string) $before['is_processing']);
+
+		// the caches XenForo rebuilt while the add-on was marked as processing have it back
+		$listeners = $this->app()->registry()->get('codeEventListeners');
+		$this->assertContains(Listener::class, array_column($this->flatten($listeners['addon_pre_uninstall'] ?? []), 0));
+		$this->assertDatabaseHas(self::RECORDS, ['batch' => 'test-uninstall-real']);
+		$this->assertDatabaseHas('xf_code_event_listener', ['addon_id' => 'Hampel/Seeder', 'event_id' => 'addon_pre_uninstall', 'active' => 1]);
+	}
+
+	/**
+	 * And through the control panel, where the administrator is shown why.
+	 */
+	public function test_an_uninstall_from_the_control_panel_is_refused_with_the_reason()
+	{
+		$this->record('test-uninstall-acp');
+		$db = $this->app()->db();
+		$this->actingAsAdministrator(['addOn' => true], ['is_super_admin' => true]);
+		$installed = $this->app()->addOnManager()->getById('Hampel/Seeder')->getInstalledAddOn();
+
+		$reply = $this->dispatch('add-ons/' . $installed->addon_id_url . '/uninstall', 'admin', [], [], 'POST');
+
+		$this->assertReplyIsError($reply);
+		$errors = implode(' ', array_map('strval', $this->replyErrors($reply)));
+		$this->assertStringContainsString('Seeder was not uninstalled', $errors);
+		$this->assertStringContainsString('seeder:clean', $errors);
+		$this->assertDatabaseHas('xf_addon', ['addon_id' => 'Hampel/Seeder', 'active' => 1, 'is_processing' => 0, 'last_pending_action' => null]);
+		$this->assertDatabaseHas(self::RECORDS, ['batch' => 'test-uninstall-acp']);
+		$this->assertNotFalse($db->fetchOne("SHOW TABLES LIKE 'xf_hampel_seeder_record'"), 'the record table is still there');
+	}
+
+	/**
 	 * With the repository mocked: the real table holds other people's batches, and emptying it to
 	 * set this up would be permanent the day this test's transaction did not hold.
 	 */
@@ -138,6 +196,21 @@ class UninstallTest extends TestCase
 		(new TableRecorder($batch))->record($question);
 
 		return $question->captcha_question_id;
+	}
+
+	/** the listener cache is [event => [hint => [[class, method], ...]]] */
+	private function flatten(array $byHint): array
+	{
+		$flat = [];
+		foreach ($byHint AS $callbacks)
+		{
+			foreach ($callbacks AS $callback)
+			{
+				$flat[] = $callback;
+			}
+		}
+
+		return $flat;
 	}
 
 	private function forget(array $input, array $answers = []): array

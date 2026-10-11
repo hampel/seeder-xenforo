@@ -64,6 +64,7 @@ needs a person.
 - **Code event listener** — `addon_pre_uninstall`, hinted to this add-on, refuses the uninstall
   while a batch is recorded. XenForo marks the add-on as processing before it fires the event, so
   the listener takes that mark back before it throws.
+- **Phrase** — one, the uninstall refusal, since the control panel shows it to an administrator.
 - No class extensions, template modifications or options.
 
 ## Fragile points
@@ -259,8 +260,10 @@ forum does. See *Needs a human*.
 For the secrets declaration: it names this add-on only, declares no options because there are
 none, claims the one `config.php` block, and fails when a setting is added to that block.
 
-For uninstalling: the listener is registered for this add-on only, refuses while a batch exists
-without leaving the add-on marked as processing, and allows it once nothing is recorded;
+For uninstalling: the listener is registered for this add-on only; XenForo's own `preUninstall()`
+and the control panel's uninstall action are both refused with the phrased reason, and both leave
+the add-on active, not processing, with its listeners back in the cache - each fails if the reset
+is taken out; and allows it once nothing is recorded;
 `seeder:forget` discards records and leaves content.
 
 `FrameworkHalfTest` fails if anything in the framework half references the add-on half.
@@ -276,8 +279,9 @@ without leaving the add-on marked as processing, and allows it once nothing is r
   both a forum without them and one with them are covered. Last run on 2026-10-11 against XenForo,
   Media Gallery and Resource Manager 2.3.13 on PHP 8.3, all as described: every seeder run, 3,267
   records made and removed, no file, row, mail or server error left.
-- **An uninstall from the admin control panel** has not been clicked; the command line takes the
-  same path to the listener.
+- **An uninstall from the admin control panel has not been clicked in a browser.** The suite
+  dispatches the control panel's uninstall action and checks the refusal and the state it leaves,
+  so what is unseen is only how the error is displayed.
 - **`seeder:validate` on a forum with Resource Manager and Media Gallery installed** is the only
   check of resources and media. Besides its table counts, count the files under `data/xfmg`,
   `data/attachments` and `internal_data/attachments` before and after, and check no server error
