@@ -39,4 +39,19 @@ class Listener
 			. 'or "php cmd.php seeder:forget" to keep the content and discard the records. Then uninstall again.'
 		);
 	}
+
+	/**
+	 * Tells the Admin API add-on, where a forum has it, which of this add-on's settings are
+	 * secrets: none. It has no options, and the one config.php block it reads holds a switch, a
+	 * locale and a number of hours - so that block can be shown in full.
+	 *
+	 * The event is that add-on's, and is never fired on a forum without it.
+	 */
+	public static function adminApiRedaction(array &$declarations): void
+	{
+		$declarations['Hampel/Seeder'] = [
+			'options' => [],
+			'config' => [Config::KEY => []],
+		];
+	}
 }

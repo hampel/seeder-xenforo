@@ -59,6 +59,8 @@ needs a person.
   No columns on core tables.
 - **Entity deletion** — `seeder:clean` deletes recorded entities of any type through the entity
   system, so every add-on's delete behaviour for that type runs.
+- **Code event listener** — `hampel_admin_api_redaction`, another add-on's event, answered with
+  this add-on's secrets: none. Never fired on a forum without that add-on.
 - **Code event listener** — `addon_pre_uninstall`, hinted to this add-on, refuses the uninstall
   while a batch is recorded. XenForo marks the add-on as processing before it fires the event, so
   the listener takes that mark back before it throws.
@@ -253,6 +255,9 @@ code.
 
 **Those tests fake the job queue**, so they do not prove the drain - `seeder:validate` on a real
 forum does. See *Needs a human*.
+
+For the secrets declaration: it names this add-on only, declares no options because there are
+none, claims the one `config.php` block, and fails when a setting is added to that block.
 
 For uninstalling: the listener is registered for this add-on only, refuses while a batch exists
 without leaving the add-on marked as processing, and allows it once nothing is recorded;
