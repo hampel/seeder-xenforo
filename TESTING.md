@@ -283,6 +283,11 @@ message with `Seeder: `.
   both a forum without them and one with them are covered. Last run on 2026-10-11 against XenForo,
   Media Gallery and Resource Manager 2.3.13 on PHP 8.3, all as described: every seeder run, 3,267
   records made and removed, no file, row, mail or server error left.
+- **The upgrade, before a release.** On the same kind of forum, install the previous build's zip,
+  seed a batch, then upgrade to the new zip by path. Check the output says `Importing add-on data`
+  and not `All data imported`, that the batch is still listed, that no file is on disk that the
+  new zip does not hold, and that the uninstall is still refused. Last run on 2026-10-11 from
+  1.0.0a1, on XenForo 2.3.13 and PHP 8.3.
 - **An uninstall from the admin control panel has not been clicked in a browser.** The suite
   dispatches the control panel's uninstall action and checks the refusal and the state it leaves,
   so what is unseen is only how the error is displayed.
@@ -299,6 +304,7 @@ message with `Seeder: `.
   on the development forum the one such add-on has no API key, and its jobs would only fail.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo
   2.3.0 on PHP 8.1, with the 2.3.0 Media Gallery and Resource Manager: lint the zip's PHP there,
-  then the same sequence as above. Last run on 2026-10-11 at 2.3.0 Patch 2 and PHP 8.1.34; it
-  found two defects that 2.3.12 and 2.3.13 do not show.
+  then the same sequence as above. Last run on 2026-10-11 at 2.3.0 Patch 2 and PHP 8.1.34. Its
+  first run found two defects that 2.3.12 and 2.3.13 do not show; the run from a zip built with
+  both fixed was clean.
 - The commands have run on XenForo 2.3 only.
