@@ -172,15 +172,27 @@ class Cleaner
 			if ($entity)
 			{
 				$this->remove($entity, $record['factory']);
+			}
 
-				// Some add-ons put off part of a delete until the request ends - the gallery's
-				// recount of its owner's quota, for one. In a clean, the owner is gone by then.
-				// So each removal is finished as its own request would have finished it.
-				\XF::triggerRunOnce();
+			// Anything in the removal that logged a server error has had XenForo roll back every
+			// open transaction to do it. The removal is then undone, and deleting its record now
+			// would strand whatever it was a record of.
+			if (self::transactionDepth($db) <= $depth)
+			{
+				throw new \RuntimeException('The removal was rolled back from under it; see the server error log');
 			}
 
 			$db->delete(TableRecorder::TABLE, 'record_id = ?', $record['record_id']);
 			$db->commit();
+
+			// Some add-ons put off part of a delete until the request ends - the gallery's recount
+			// of its owner's quota, for one. In a clean, the owner is gone by then. So each
+			// removal is finished as its own request would have finished it - after the commit,
+			// because XenForo answers a failure in one of these by rolling everything back.
+			if ($entity)
+			{
+				\XF::triggerRunOnce();
+			}
 		}
 		catch (\Throwable $e)
 		{

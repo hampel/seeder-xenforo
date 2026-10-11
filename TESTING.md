@@ -113,6 +113,11 @@ needs a person.
   quota and rebuilds an album's thumbnail then - by which time a clean has deleted the owner and
   the album, and XenForo logs a server error for each. The cleaner ends each removal as its own
   request would (`\XF::triggerRunOnce()`). Found on 2026-10-11 as thirteen error log rows.
+- **XenForo rolls back every open transaction when it logs a server error.** Anything inside a
+  removal that logs one undoes the removal, and code that carries on then writes outside a
+  transaction. The cleaner checks its transaction is still open before deleting a record, and
+  runs deferred work only after the commit. Found on 2026-10-11, when `seeder:validate` left one
+  member with no record of it.
 - **An emptied album says it has no thumbnail while the file is still there**, so the gallery's own
   delete leaves it. The album factory deletes the file itself.
 - **An album's thumbnail is dated by the real clock**, whatever the dates of its items. It is a
@@ -159,6 +164,9 @@ reserved domains with no bare address; a prefix has its phrase and forum associa
 is a real PNG and its file is gone after cleaning; a seeded forum cleans back to its starting
 counts across eighteen tables with no alert, mail, watch, IP or moderator log row; a removal that
 fails mid-transaction is undone and the rest still happen.
+
+For the cleaner: a removal rolled back from under it keeps its record, and work put off to the end
+of the request runs after each removal is committed.
 
 For tags: new ones are made and recorded, existing ones used and left, names tidied, dates taken
 from the thread, and a name the forum would not accept refused. For the cleaner: a removal that

@@ -60,6 +60,57 @@ class CleanerRetryTest extends TestCase
 		$this->assertFalse($this->app()->db()->inTransaction());
 	}
 
+	public function test_a_removal_rolled_back_from_under_it_keeps_its_record()
+	{
+		$question = $this->question('test-retry-undone');
+
+		// what XenForo does when anything inside a delete logs a server error
+		$cleaner = new class extends Cleaner
+		{
+			protected function remove(Entity $entity, ?string $factory): void
+			{
+				parent::remove($entity, $factory);
+
+				\XF::db()->rollbackAll();
+			}
+		};
+		$result = $cleaner->clean('test-retry-undone');
+
+		$this->assertCount(1, $result['failed']);
+		$this->assertStringContainsString('rolled back from under it', $result['failed'][0]['error']);
+		$this->assertDatabaseHas('xf_captcha_question', ['captcha_question_id' => $question], 'the delete was undone');
+		$this->assertDatabaseCount(TableRecorder::TABLE, 1, ['batch' => 'test-retry-undone'], 'so its record is kept');
+		$this->assertFalse($this->app()->db()->inTransaction());
+	}
+
+	public function test_work_put_off_to_the_end_of_the_request_is_done_after_each_removal_is_committed()
+	{
+		$this->question('test-retry-deferred');
+		$seen = null;
+
+		$cleaner = new class extends Cleaner
+		{
+			public $check;
+
+			protected function remove(Entity $entity, ?string $factory): void
+			{
+				parent::remove($entity, $factory);
+
+				\XF::runOnce('seederTestDeferred', $this->check);
+			}
+		};
+		$cleaner->check = function () use (&$seen)
+		{
+			$seen = [
+				'in_transaction' => \XF::db()->inTransaction(),
+				'records' => (int) \XF::db()->fetchOne('SELECT COUNT(*) FROM ' . TableRecorder::TABLE . " WHERE batch = 'test-retry-deferred'"),
+			];
+		};
+		$cleaner->clean('test-retry-deferred');
+
+		$this->assertSame(['in_transaction' => false, 'records' => 0], $seen);
+	}
+
 	private function question(string $batch): int
 	{
 		$question = $this->createEntity('XF:CaptchaQuestion', [
