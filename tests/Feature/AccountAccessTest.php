@@ -22,7 +22,7 @@ class AccountAccessTest extends TestCase
 	private const TABLES = [
 		'xf_user', 'xf_user_connected_account', 'xf_user_tfa', 'xf_passkey', 'xf_user_remember', 'xf_user_confirmation',
 		'xf_ip', 'xf_session_activity', 'xf_user_alert', 'xf_user_follow', 'xf_post', 'xf_thread', 'xf_change_log',
-		'xf_approval_queue',
+		'xf_approval_queue', 'xf_user_authenticate', 'xf_user_profile', 'xf_user_option', 'xf_user_privacy',
 	];
 
 	/** @var Context|null */
@@ -231,6 +231,72 @@ class AccountAccessTest extends TestCase
 		$this->assertSame($before['xf_approval_queue'] + 4, $after['xf_approval_queue']);
 
 		$this->assertSame([], (new Cleaner())->clean('test-moderated-seeder')['failed']);
+		$this->assertSame($before, $this->tableCounts());
+	}
+
+	public function test_a_member_without_a_password_has_xenforos_no_password_scheme_and_cannot_log_in_with_one()
+	{
+		$recorder = $this->recordInto('test-no-password');
+		$db = $this->app()->db();
+		$provider = $db->fetchOne('SELECT provider_id FROM xf_connected_account_provider LIMIT 1');
+
+		$member = UserFactory::new()->withoutPassword()->create();
+		$viaProvider = UserFactory::new()->withoutPassword()->withConnectedAccount($provider)->create();
+		$ordinary = UserFactory::new()->create();
+
+		foreach ([$member, $viaProvider] AS $user)
+		{
+			$this->assertDatabaseHas('xf_user_authenticate', ['user_id' => $user->user_id, 'scheme_class' => 'XF:NoPassword']);
+			$auth = $this->app()->find('XF:UserAuth', $user->user_id);
+			$this->assertFalse($auth->getAuthenticationHandler()->hasPassword());
+			$this->assertFalse($auth->authenticate('password'), 'the password every other seeded member has');
+			$this->assertFalse($auth->authenticate(''));
+		}
+		$this->assertDatabaseHas('xf_user_connected_account', ['user_id' => $viaProvider->user_id, 'provider' => $provider]);
+		$this->assertDatabaseCount('xf_user_connected_account', 0, ['user_id' => $member->user_id]);
+		$this->assertTrue($this->app()->find('XF:UserAuth', $ordinary->user_id)->authenticate('password'), 'and an ordinary member still can');
+
+		$has = array_map(function ($user) { return $user['has'] ?? []; }, $recorder->created()['XF:User']);
+		$this->assertSame([['no_password'], ['no_password', 'connected'], []], $has);
+	}
+
+	public function test_a_member_without_authentication_has_no_such_record_and_is_otherwise_whole()
+	{
+		$recorder = $this->recordInto('test-no-auth');
+		$before = $this->tableCounts();
+
+		$member = UserFactory::new()->withoutAuthentication()->create();
+
+		$this->assertDatabaseCount('xf_user_authenticate', 0, ['user_id' => $member->user_id]);
+		foreach (['xf_user', 'xf_user_profile', 'xf_user_option', 'xf_user_privacy'] AS $table)
+		{
+			$this->assertDatabaseHas($table, ['user_id' => $member->user_id]);
+		}
+		$this->assertNull($member->Auth, 'the entity handed back agrees with the database');
+		$this->app()->em()->clearEntityCache();
+		$this->assertNull($this->app()->find('XF:User', $member->user_id)->Auth);
+		$this->assertSame([['no_authentication']], array_column($recorder->created()['XF:User'], 'has'));
+
+		$this->assertSame([], (new Cleaner())->clean('test-no-auth')['failed'], 'XenForo can still delete such a member');
+		$this->assertSame($before, $this->tableCounts());
+	}
+
+	public function test_the_seeder_makes_both_and_cleaning_leaves_nothing()
+	{
+		$before = $this->tableCounts();
+
+		$tester = new CommandTester(new Run());
+		$code = $tester->execute(['seeder' => 'User', '-p' => ['users=1', 'passwordless=2', 'no_auth=2'], '--batch' => 'test-auth-seeder', '--seed' => '4'], ['capture_stderr_separately' => true]);
+
+		$this->assertSame(0, $code, $tester->getDisplay() . $tester->getErrorOutput());
+		$after = $this->tableCounts();
+		$this->assertSame($before['xf_user'] + 5, $after['xf_user']);
+		$this->assertSame($before['xf_user_authenticate'] + 3, $after['xf_user_authenticate'], 'two of the five have no record');
+		$this->assertSame($before['xf_user_connected_account'] + 2, $after['xf_user_connected_account']);
+		$newest = $this->app()->db()->fetchAllColumn('SELECT user_id FROM xf_user ORDER BY user_id DESC LIMIT 5');
+		$this->assertSame(2, (int) $this->app()->db()->fetchOne("SELECT COUNT(*) FROM xf_user_authenticate WHERE scheme_class = 'XF:NoPassword' AND user_id IN (" . $this->app()->db()->quote($newest) . ')'));
+
+		$this->assertSame([], (new Cleaner())->clean('test-auth-seeder')['failed']);
 		$this->assertSame($before, $this->tableCounts());
 	}
 

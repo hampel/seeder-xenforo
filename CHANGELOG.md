@@ -13,6 +13,8 @@ First release.
   verification, a passkey, a remember key, a pending confirmation) and activity without content
 - members awaiting approval are in the approval queue at the date they registered, so a seeded
   queue has an order
+- members can be made without a password, as XenForo makes one who registers through a connected
+  account, or with no authentication record at all
 - everything created is recorded in a batch: `seeder:list` shows the batches, `seeder:clean`
   removes one and `seeder:forget` keeps the content and discards the record
 - content is dated across a span of time and not all at the moment it was made, and a run given

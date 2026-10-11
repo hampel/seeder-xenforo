@@ -37,7 +37,8 @@ needs a person.
 - **Other ways into an account, and activity without content** — connected account, two-step,
   passkey, remember key, confirmation, login IP, who-is-online, alert and follow rows, each through
   its entity (two-step through XenForo's `TfaRepository`). None is recorded: XenForo's member
-  delete removes them all.
+  delete removes them all. A member without a password is given XenForo's own no-password scheme
+  before the save; one without authentication is saved whole and has that record deleted.
 - **Reactions** — through the `ReactionContent` entity, not XenForo's reaction repository, which
   alerts the author and queues a webhook. The save rewrites the content's reaction summary, so the
   content is silenced first. Published to the news feed by hand, with the date corrected.
@@ -213,9 +214,11 @@ For account access: each way in writes the rows XenForo keeps for it, dated in t
 nothing; a member active without content has the login, alert and follows and no content; a named
 member can be the other party; an unknown provider is refused before anyone is created; a member
 whose extras fail is removed, not left unrecorded; the seeder cleans back to its starting counts
-across fourteen tables. A moderated member is in the approval queue at their registration date, a
+across eighteen tables. A moderated member is in the approval queue at their registration date, a
 date given to one is the date in the queue, a member in any other state is not in it, and
-removing the member takes the entry with them.
+removing the member takes the entry with them. A member without a password has XenForo's
+no-password scheme and cannot log in with one while an ordinary member can; a member without
+authentication has no such record, has every other row, and can still be removed.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are

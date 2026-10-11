@@ -91,6 +91,30 @@ class UserFactory extends AbstractFactory
 	}
 
 	/**
+	 * Has no password, as a member who registered through a connected account has not: XenForo's
+	 * own no-password scheme. They cannot log in with one until they ask for a reset. Add
+	 * withConnectedAccount() for the whole of such a registration.
+	 *
+	 * @return static
+	 */
+	public function withoutPassword()
+	{
+		return $this->extra('no_password');
+	}
+
+	/**
+	 * Has no authentication record at all, which XenForo never does itself and a forum can still
+	 * hold: after an import that stopped part-way, or a member written straight into the database.
+	 * The member is saved as usual and the record then deleted.
+	 *
+	 * @return static
+	 */
+	public function withoutAuthentication()
+	{
+		return $this->extra('no_authentication');
+	}
+
+	/**
 	 * Has signed in with another service as well: a connected account row for that provider, with
 	 * a made-up id at the provider and no tokens.
 	 *
@@ -395,8 +419,15 @@ class UserFactory extends AbstractFactory
 			self::$extras[$user] = $extras;
 		}
 
-		[$scheme, $data] = self::hash($this->context()->password);
-		$user->Auth->bulkSet(['scheme_class' => $scheme, 'data' => $data]);
+		if (in_array('no_password', array_column($extras, 0), true))
+		{
+			$user->Auth->setNoPassword();
+		}
+		else
+		{
+			[$scheme, $data] = self::hash($this->context()->password);
+			$user->Auth->bulkSet(['scheme_class' => $scheme, 'data' => $data]);
+		}
 		$user->Profile->password_date = $user->register_date;
 
 		return $user;
@@ -444,6 +475,18 @@ class UserFactory extends AbstractFactory
 
 		switch ($kind)
 		{
+			case 'no_password':
+				// set before the save, where the password otherwise is
+				break;
+
+			case 'no_authentication':
+				if ($user->Auth)
+				{
+					$user->Auth->delete();
+				}
+				$user->clearCache('Auth');
+				break;
+
 			case 'connected':
 				$account = $em->create('XF:UserConnectedAccount');
 				$account->bulkSet(['user_id' => $user->user_id, 'provider' => $argument, 'provider_key' => (string) mt_rand(10 ** 14, 10 ** 15)]);

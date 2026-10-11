@@ -15,6 +15,11 @@ use Hampel\Seeder\Factory\UserFactory;
  *                following and followed (0)
  *     moderated  how many more who are awaiting approval, each in the approval queue at the date
  *                they registered (0)
+ *     passwordless  how many more who registered through a connected account and so have no
+ *                password (0). Without a provider on the forum they have no password and no
+ *                connected account
+ *     no_auth    how many more with no authentication record at all, as a part-finished import
+ *                can leave (0)
  */
 class UserSeeder extends AbstractSeeder
 {
@@ -48,6 +53,19 @@ class UserSeeder extends AbstractSeeder
 		if ($moderated)
 		{
 			UserFactory::new()->moderated()->count($moderated)->create();
+		}
+
+		$passwordless = $this->count('passwordless', 0);
+		if ($passwordless)
+		{
+			$member = UserFactory::new()->withoutPassword();
+			($provider ? $member->withConnectedAccount($provider) : $member)->count($passwordless)->create();
+		}
+
+		$noAuth = $this->count('no_auth', 0);
+		if ($noAuth)
+		{
+			UserFactory::new()->withoutAuthentication()->count($noAuth)->create();
 		}
 	}
 }
