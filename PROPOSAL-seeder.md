@@ -102,7 +102,7 @@ class DefaultSeeder extends AbstractSeeder
   An agent needs to say "200 threads" without writing a class. There are no per-seeder named
   options: a command cannot know which seeder it will be given, so `-p name=value` is the one
   form.
-- **Any add-on can ship its own seeders and factories.** `seeder:run Vendor/Addon:Name` resolves
+- **Any add-on can carry its own seeders and factories, in its repository and not its release.** `seeder:run Vendor/Addon:Name` resolves
   to `Vendor\Addon\Seed\NameSeeder`. The class extends ours but is only loaded when asked for, so
   the other add-on takes no hard dependency. XFRM and XFMG seeders live in this add-on, each
   checking the target add-on is installed.

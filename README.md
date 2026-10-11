@@ -451,7 +451,7 @@ line, and for a job the job manager's frame in the stack trace.
 
 ### Your own seeders and factories
 
-**Any add-on can ship seeders for its own content.** Put a class in the add-on's `Seed` directory
+**Any add-on can carry seeders for its own content.** Put a class in the add-on's `Seed` directory
 and run it as `Vendor/AddOn:Name`:
 
 ```php
@@ -475,6 +475,18 @@ class ThingSeeder extends AbstractSeeder
 ```bash
 php cmd.php seeder:run Vendor/AddOn:Thing -p things=25
 ```
+
+**Keep them in the repository and out of the release.** Seeders and factories are development
+tooling, like tests: a forum running the add-on has no use for them, and a development install is
+a clone of the repository, which has them. Remove them in the add-on's `build.json`, before any
+line that moves files:
+
+```json
+"rm -frv _build/upload/src/addons/{addon_id}/Seed _build/upload/src/addons/{addon_id}/Factory"
+```
+
+Name whichever directory holds the factories, and leave it out of that line if it also holds
+classes the add-on needs.
 
 A factory says what one entity looks like by default, in the manner of a Laravel model factory:
 
