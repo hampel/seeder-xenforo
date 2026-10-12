@@ -67,5 +67,19 @@ class UserSeeder extends AbstractSeeder
 		{
 			UserFactory::new()->withoutAuthentication()->count($noAuth)->create();
 		}
+
+		$banned = $this->count('banned', 0);
+		if ($banned)
+		{
+			$moderator = UserFactory::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
+			UserFactory::new()->banned(null, $moderator)->count(intdiv($banned + 1, 2))->create();
+			UserFactory::new()->banned(time() + 30 * 86400, $moderator)->count(intdiv($banned, 2))->create();
+		}
+
+		$bouncing = $this->count('bouncing', 0);
+		if ($bouncing)
+		{
+			UserFactory::new()->bouncing()->count($bouncing)->create();
+		}
 	}
 }

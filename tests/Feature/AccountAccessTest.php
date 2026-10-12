@@ -23,6 +23,7 @@ class AccountAccessTest extends TestCase
 		'xf_user', 'xf_user_connected_account', 'xf_user_tfa', 'xf_passkey', 'xf_user_remember', 'xf_user_confirmation',
 		'xf_ip', 'xf_session_activity', 'xf_user_alert', 'xf_user_follow', 'xf_post', 'xf_thread', 'xf_change_log',
 		'xf_approval_queue', 'xf_user_authenticate', 'xf_user_profile', 'xf_user_option', 'xf_user_privacy',
+		'xf_user_ban', 'xf_user_group_change', 'xf_user_group_relation',
 	];
 
 	/** @var Context|null */
@@ -36,6 +37,168 @@ class AccountAccessTest extends TestCase
 		$this->fakesMail();
 		$this->fakesJobs();
 		$this->previous = Context::use(null);
+	}
+
+	public function test_a_banned_member_has_xenforos_ban_record_and_the_flag_it_sets()
+	{
+		$recorder = $this->recordInto('test-banned');
+		$db = $this->app()->db();
+		$bans = (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user_ban');
+		$until = time() + 7 * 86400;
+
+		$permanent = UserFactory::new()->banned()->count(2)->create();
+		$temporary = UserFactory::new()->banned($until)->create();
+		$ordinary = UserFactory::new()->create();
+
+		$by = [];
+		foreach ($permanent AS $member)
+		{
+			$this->assertDatabaseHas('xf_user', ['user_id' => $member->user_id, 'is_banned' => 1, 'user_state' => 'valid']);
+			$this->assertDatabaseHas('xf_user_ban', ['user_id' => $member->user_id, 'end_date' => 0, 'triggered' => 0]);
+			$ban = $db->fetchRow('SELECT * FROM xf_user_ban WHERE user_id = ?', $member->user_id);
+			$this->assertGreaterThanOrEqual($member->register_date, $ban['ban_date'], 'banned after they joined');
+			$this->assertLessThanOrEqual(time(), $ban['ban_date']);
+			$this->assertNotSame('', $ban['user_reason']);
+			$by[] = $ban['ban_user_id'];
+		}
+		$this->assertDatabaseHas('xf_user_ban', ['user_id' => $temporary->user_id, 'end_date' => $until]);
+		$this->assertDatabaseHas('xf_user', ['user_id' => $temporary->user_id, 'is_banned' => 1]);
+		$this->assertDatabaseHas('xf_user', ['user_id' => $ordinary->user_id, 'is_banned' => 0]);
+
+		$this->assertCount(1, array_unique($by), 'one moderator banned both, not one each');
+		$this->assertDatabaseHas('xf_user', ['user_id' => $by[0], 'is_moderator' => 1, 'is_banned' => 0]);
+
+		$has = array_column($recorder->created()['XF:User'], 'has', 'username');
+		$this->assertSame(['banned'], $has[$temporary->username]);
+
+		$this->assertSame([], (new Cleaner())->clean('test-banned')['failed']);
+		$this->assertSame($bans, (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user_ban'), 'removing the member takes their ban');
+	}
+
+	public function test_a_named_member_can_be_the_one_who_banned_them()
+	{
+		$this->recordInto('test-banned-by');
+		$moderator = UserFactory::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
+		$members = (int) $this->app()->db()->fetchOne('SELECT COUNT(*) FROM xf_user');
+
+		$banned = UserFactory::new()->banned(null, $moderator)->count(2)->create();
+
+		$this->assertSame($members + 2, (int) $this->app()->db()->fetchOne('SELECT COUNT(*) FROM xf_user'));
+		foreach ($banned AS $member)
+		{
+			$this->assertDatabaseHas('xf_user_ban', ['user_id' => $member->user_id, 'ban_user_id' => $moderator->user_id]);
+		}
+	}
+
+	public function test_a_permanent_ban_takes_a_moderated_member_out_of_the_queue_and_a_temporary_one_does_not()
+	{
+		$this->recordInto('test-banned-moderated');
+
+		$permanent = UserFactory::new()->moderated()->banned()->create();
+		$temporary = UserFactory::new()->moderated()->banned(time() + 86400)->create();
+
+		// XenForo's doing, and written down so nobody is surprised by it
+		$this->assertDatabaseHas('xf_user', ['user_id' => $permanent->user_id, 'is_banned' => 1, 'user_state' => 'valid']);
+		$this->assertDatabaseCount('xf_approval_queue', 0, ['content_type' => 'user', 'content_id' => $permanent->user_id]);
+		$this->assertDatabaseHas('xf_user', ['user_id' => $temporary->user_id, 'is_banned' => 1, 'user_state' => 'moderated']);
+		$this->assertDatabaseCount('xf_approval_queue', 1, ['content_type' => 'user', 'content_id' => $temporary->user_id]);
+	}
+
+	public function test_a_forum_with_a_banned_group_puts_the_member_in_it_and_cleaning_takes_them_out()
+	{
+		$this->recordInto('test-banned-group');
+		$db = $this->app()->db();
+		$changes = (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user_group_change');
+		$relations = (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user_group_relation');
+
+		// the ban entity reads the forum's option once, when its structure is first built
+		$structure = $this->app()->em()->getEntityStructure('XF:UserBan');
+		$was = $structure->options['ban_user_group'];
+		$structure->options['ban_user_group'] = 4;
+		try
+		{
+			$member = UserFactory::new()->banned()->create();
+		}
+		finally
+		{
+			$structure->options['ban_user_group'] = $was;
+		}
+
+		$this->assertDatabaseHas('xf_user_group_change', ['user_id' => $member->user_id, 'change_key' => 'banGroup']);
+		$this->assertContains(4, array_map('intval', $this->app()->find('XF:User', $member->user_id)->secondary_group_ids));
+
+		$this->assertSame([], (new Cleaner())->clean('test-banned-group')['failed']);
+		$this->assertSame($changes, (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user_group_change'));
+		$this->assertSame($relations, (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user_group_relation'));
+	}
+
+	public function test_staff_cannot_be_banned_or_bouncing_and_nobody_is_created()
+	{
+		$this->recordInto('test-banned-staff');
+		$members = (int) $this->app()->db()->fetchOne('SELECT COUNT(*) FROM xf_user');
+
+		$refused = [];
+		foreach ([
+			'banned moderator' => UserFactory::new()->banned()->state(['is_moderator' => true]),
+			'banned administrator' => UserFactory::new()->state(['is_admin' => true])->banned(),
+			'bouncing moderator' => UserFactory::new()->bouncing()->state(['is_moderator' => true]),
+			'bouncing staff' => UserFactory::new()->state(['is_staff' => true])->bouncing(),
+		] AS $what => $factory)
+		{
+			try
+			{
+				$factory->create();
+			}
+			catch (\InvalidArgumentException $e)
+			{
+				$refused[] = $what;
+			}
+		}
+
+		$this->assertSame(['banned moderator', 'banned administrator', 'bouncing moderator', 'bouncing staff'], $refused);
+		$this->assertSame($members, (int) $this->app()->db()->fetchOne('SELECT COUNT(*) FROM xf_user'));
+	}
+
+	public function test_a_ban_that_has_already_run_out_is_refused()
+	{
+		$this->expectException(\InvalidArgumentException::class);
+		$this->expectExceptionMessage('has to end in the future');
+
+		UserFactory::new()->banned(time() - 60);
+	}
+
+	public function test_a_bouncing_member_has_the_state_xenforo_gives_one_and_is_otherwise_ordinary()
+	{
+		$this->recordInto('test-bouncing');
+
+		$member = UserFactory::new()->bouncing()->create();
+
+		$this->assertDatabaseHas('xf_user', ['user_id' => $member->user_id, 'user_state' => 'email_bounce', 'is_banned' => 0]);
+		$this->assertNotSame('', $member->email);
+		$this->assertDatabaseCount('xf_approval_queue', 0, ['content_type' => 'user', 'content_id' => $member->user_id]);
+	}
+
+	public function test_the_seeder_makes_banned_and_bouncing_members_and_cleaning_leaves_nothing()
+	{
+		$before = $this->tableCounts();
+
+		$tester = new CommandTester(new Run());
+		$code = $tester->execute(['seeder' => 'User', '-p' => ['users=1', 'banned=3', 'bouncing=2'], '--batch' => 'test-banned-seeder', '--seed' => '6'], ['capture_stderr_separately' => true]);
+
+		$this->assertSame(0, $code, $tester->getDisplay() . $tester->getErrorOutput());
+		// one ordinary, the moderator, three banned and two bouncing
+		$this->assertCount(7, json_decode($tester->getDisplay(), true)['created']['XF:User']);
+
+		$db = $this->app()->db();
+		$newest = $db->fetchAllColumn('SELECT user_id FROM xf_user ORDER BY user_id DESC LIMIT 7');
+		$in = $db->quote($newest);
+		$this->assertSame(2, (int) $db->fetchOne("SELECT COUNT(*) FROM xf_user_ban WHERE end_date = 0 AND user_id IN ({$in})"));
+		$this->assertSame(1, (int) $db->fetchOne("SELECT COUNT(*) FROM xf_user_ban WHERE end_date > ? AND user_id IN ({$in})", time()));
+		$this->assertSame(3, (int) $db->fetchOne("SELECT COUNT(*) FROM xf_user WHERE is_banned = 1 AND user_id IN ({$in})"));
+		$this->assertSame(2, (int) $db->fetchOne("SELECT COUNT(*) FROM xf_user WHERE user_state = 'email_bounce' AND user_id IN ({$in})"));
+
+		$this->assertSame([], (new Cleaner())->clean('test-banned-seeder')['failed']);
+		$this->assertSame($before, $this->tableCounts());
 	}
 
 	protected function tearDown(): void

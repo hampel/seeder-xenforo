@@ -81,6 +81,52 @@ class UserFactory extends AbstractFactory
 	}
 
 	/**
+	 * Mail to their address bounced, and XenForo has stopped sending to it. This is the state
+	 * alone, as XenForo's own bounce handling sets it: no bounce is logged. XenForo never does it
+	 * to staff, so a bouncing moderator or administrator is refused.
+	 *
+	 * @return static
+	 */
+	public function bouncing()
+	{
+		return $this->state(['user_state' => 'email_bounce']);
+	}
+
+	/**
+	 * Banned, with the ban record XenForo keeps: who banned them, when, until when and why.
+	 * XenForo sets the member's banned flag from that record, and adds them to the forum's banned
+	 * user group where it has one set.
+	 *
+	 * **A permanent ban of a member awaiting approval makes them valid** - XenForo does that so
+	 * they leave the approval queue. `moderated()->banned()` is therefore a valid, banned member;
+	 * give an end date to keep them moderated. A moderator or administrator cannot be banned and
+	 * is refused.
+	 *
+	 * @param int|null  $until when the ban ends, as a timestamp in the future - permanent if omitted
+	 * @param User|null $by    who banned them - a new moderator if omitted, one for every member
+	 *                         this factory goes on to make
+	 *
+	 * @return static
+	 */
+	public function banned(?int $until = null, ?User $by = null)
+	{
+		if ($until !== null && $until <= time())
+		{
+			throw new \InvalidArgumentException('A ban has to end in the future: XenForo lifts one that has run out within the hour');
+		}
+
+		// one moderator however many members are made, and none until the first of them is
+		$by = $by ?? function ()
+		{
+			static $made = null;
+
+			return $made = $made ?? static::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
+		};
+
+		return $this->extra('banned', [(int) $until, $by]);
+	}
+
+	/**
 	 * Has no email address at all - as a member imported from elsewhere may not.
 	 *
 	 * @return static
@@ -371,8 +417,18 @@ class UserFactory extends AbstractFactory
 		$extras = $attributes['extras'] ?? [];
 		unset($attributes['fields'], $attributes['extras']);
 
+		$staff = !empty($attributes['is_admin']) || !empty($attributes['is_moderator']);
+		if (($attributes['user_state'] ?? null) === 'email_bounce' && ($staff || !empty($attributes['is_staff'])))
+		{
+			throw new \InvalidArgumentException('A moderator, administrator or staff member cannot be bouncing: XenForo never stops mail to one');
+		}
+
 		foreach ($extras AS [$kind, $argument])
 		{
+			if ($kind === 'banned' && $staff)
+			{
+				throw new \InvalidArgumentException('A moderator or administrator cannot be banned: XenForo refuses it');
+			}
 			if ($kind === 'connected' && !\XF::em()->find('XF:ConnectedAccountProvider', $argument))
 			{
 				throw new \InvalidArgumentException("This forum has no connected account provider '{$argument}'");
@@ -559,6 +615,21 @@ class UserFactory extends AbstractFactory
 					'event_date' => max($when, $from->register_date),
 				]);
 				$alert->save();
+				break;
+
+			case 'banned':
+				[$until, $by] = $argument;
+				$by = $by instanceof \Closure ? $by() : $by;
+
+				$ban = $em->create('XF:UserBan');
+				$ban->bulkSet([
+					'user_id' => $user->user_id, 'ban_user_id' => $by->user_id,
+					'ban_date' => max($when, min($by->register_date, time())), 'end_date' => $until,
+					'user_reason' => rtrim($this->context()->faker->sentence(mt_rand(3, 6)), '.'),
+				]);
+				// the ban saves the member, to set their banned flag
+				static::silence($user);
+				$ban->save();
 				break;
 
 			case 'following':
