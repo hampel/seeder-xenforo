@@ -186,6 +186,32 @@ class ReactionAndStateTest extends TestCase
 		$this->assertDatabaseHas('xf_thread', ['thread_id' => $thread->thread_id, 'reply_count' => 0, 'discussion_state' => 'visible']);
 	}
 
+	public function test_a_featured_thread_has_xenforos_featured_content_record_and_nothing_is_logged()
+	{
+		$recorder = $this->recordInto('test-featured');
+		$db = $this->app()->db();
+		$features = $this->rows('xf_featured_content');
+		$logged = $this->rows('xf_moderator_log');
+
+		$thread = ThreadFactory::new()->featured()->create();
+		$plain = ThreadFactory::new()->create();
+
+		$this->assertDatabaseHas('xf_thread', ['thread_id' => $thread->thread_id, 'featured' => 1]);
+		$this->assertDatabaseHas('xf_thread', ['thread_id' => $plain->thread_id, 'featured' => 0]);
+		$this->assertDatabaseHas('xf_featured_content', [
+			'content_type' => 'thread', 'content_id' => $thread->thread_id, 'content_container_id' => $thread->node_id,
+			'content_user_id' => $thread->user_id, 'content_date' => $thread->post_date, 'content_visible' => 1,
+			'feature_user_id' => $thread->user_id, 'feature_date' => $thread->post_date,
+		]);
+		$this->assertSame($features + 1, $this->rows('xf_featured_content'));
+		$this->assertSame($logged, $this->rows('xf_moderator_log'), 'featuring is not written down as a moderator\'s action');
+		$this->assertTrue($recorder->created()['XF:Thread'][0]['featured'] ?? false);
+
+		$this->assertSame([], (new Cleaner())->clean('test-featured')['failed']);
+		$this->assertSame($features, $this->rows('xf_featured_content'), 'removing the thread takes its feature');
+		$this->assertSame($logged, $this->rows('xf_moderator_log'));
+	}
+
 	public function test_attachments_carry_their_posts_date()
 	{
 		$this->recordInto('test-attach-date');

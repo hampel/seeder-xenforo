@@ -5,9 +5,9 @@
 First release.
 
 - `seeder:run` fills a forum with test content from seeders and factories, with Faker: members,
-  forums, threads and replies with prefixes, tags, attachments and reactions, moderated and
-  deleted content, conversations, custom user fields, user upgrades, warnings, API keys, who is
-  online, and the server error log
+  forums, threads and replies with prefixes, tags, attachments and reactions, featured threads,
+  moderated and deleted content, conversations, custom user fields, user upgrades, warnings, API
+  keys, who is online, and the server error log
 - Resource Manager resources and Media Gallery items, where those add-ons are installed;
   resources can be rated, reviewed and featured
 - members can be given other ways into their account (a connected account, two-step

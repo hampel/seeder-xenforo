@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Factory;
 
+use Hampel\Seeder\Factory\Concerns\FeaturesContent;
 use Hampel\Seeder\Factory\Concerns\NeedsAddOn;
 use XF\Mvc\Entity\Entity;
 
@@ -17,6 +18,7 @@ use XF\Mvc\Entity\Entity;
  */
 class ResourceFactory extends AbstractFactory
 {
+	use FeaturesContent;
 	use NeedsAddOn;
 
 	protected $entity = 'XFRM:ResourceItem';
@@ -68,10 +70,7 @@ class ResourceFactory extends AbstractFactory
 	 */
 	public static function remove(Entity $entity): void
 	{
-		if ($entity->Feature)
-		{
-			$entity->Feature->delete();
-		}
+		self::unfeature($entity);
 
 		parent::remove($entity);
 	}
@@ -156,24 +155,7 @@ class ResourceFactory extends AbstractFactory
 
 		if ($pending['featured'])
 		{
-			$handler = \XF::repository('XF:FeaturedContent')->getFeatureHandler('resource', true);
-
-			$feature = \XF::em()->create('XF:FeaturedContent');
-			$feature->bulkSet([
-				'content_type' => 'resource',
-				'content_id' => $entity->resource_id,
-				'content_container_id' => $handler->getContentContainerId($entity),
-				'content_user_id' => $handler->getContentUserId($entity),
-				'content_username' => $handler->getContentUsername($entity),
-				'content_date' => $handler->getContentDate($entity),
-				'content_visible' => $handler->getContentVisibility($entity),
-				'feature_user_id' => $pending['author']->user_id,
-				// otherwise a column default, the moment the first feature of the run was made
-				'feature_date' => $pending['date'],
-			]);
-			$feature->save();
-
-			$entity->fastUpdate('featured', true);
+			self::feature($entity, $pending['author']->user_id, $pending['date']);
 		}
 	}
 

@@ -78,7 +78,7 @@ that is only overridden by another you gave is reported the same way.
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
 | `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
 | `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
@@ -174,7 +174,7 @@ ThreadFactory::new()
 | factory | builds | states |
 |---|---|---|
 | `ForumFactory` | a forum; the entity returned is its node | |
-| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])` |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])` |
 | `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)` |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
 | `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |

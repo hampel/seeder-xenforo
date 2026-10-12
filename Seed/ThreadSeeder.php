@@ -25,6 +25,7 @@ use XF\Repository\TagRepository;
  *               none (0)
  *     tags      how many different tags to file the threads under, each thread getting up to
  *               three of them; 0 for none (0)
+ *     featured  how many of the threads are featured (0)
  *     states    1 to add threads and replies that are awaiting approval or soft-deleted, about
  *               one in six of each; 0 for everything visible (0)
  *
@@ -96,6 +97,15 @@ class ThreadSeeder extends AbstractSeeder
 				}
 
 				return ['tags' => array_values(array_unique($picked))];
+			});
+		}
+
+		$featured = $this->count('featured', 0);
+		if ($featured)
+		{
+			$threads = $threads->state(function () use (&$featured)
+			{
+				return $featured-- > 0 ? ['featured' => true] : [];
 			});
 		}
 

@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Factory;
 
+use Hampel\Seeder\Factory\Concerns\FeaturesContent;
 use Hampel\Seeder\Factory\Concerns\WritesPosts;
 use XF\Mvc\Entity\Entity;
 use XF\Repository\TagRepository;
@@ -16,9 +17,11 @@ use XF\Service\Thread\CreatorService;
  *     attachments     how many images to attach to the first post
  *     deleted         true to soft-delete it once posted; delete_reason and deleted_by go with it
  *     tags            the names of tags to file it under - see withTags()
+ *     featured        true to feature it - see featured()
  */
 class ThreadFactory extends AbstractFactory
 {
+	use FeaturesContent;
 	use WritesPosts;
 
 	protected $entity = 'XF:Thread';
@@ -64,6 +67,14 @@ class ThreadFactory extends AbstractFactory
 
 	/** @return static */
 	public function sticky() { return $this->state(['sticky' => true]); }
+
+	/**
+	 * Featured, with the featured content record XenForo keeps and not the flag alone: it has no
+	 * image or title of its own, and the thread's author is named as the one who featured it.
+	 *
+	 * @return static
+	 */
+	public function featured() { return $this->state(['featured' => true]); }
 
 	/**
 	 * Awaiting approval, as a thread posted in a moderated forum is. It is in the approval queue
@@ -151,6 +162,10 @@ class ThreadFactory extends AbstractFactory
 			'first_post_id' => $entity->first_post_id,
 		];
 
+		if ($entity->featured)
+		{
+			$described['featured'] = true;
+		}
 		if ($entity->tags)
 		{
 			$described['tags'] = array_values(array_column($entity->tags, 'tag'));
@@ -163,6 +178,7 @@ class ThreadFactory extends AbstractFactory
 	{
 		$postIds = \XF::db()->fetchAllColumn('SELECT post_id FROM xf_post WHERE thread_id = ?', $entity->thread_id);
 
+		self::unfeature($entity);
 		self::removeWithAttachments($entity, $postIds);
 	}
 
@@ -198,7 +214,7 @@ class ThreadFactory extends AbstractFactory
 		$thread = $creator->getThread();
 		$own = array_diff_key($attributes, array_flip(
 			['node_id', 'user_id', 'title', 'message', 'message_parts', 'tags', 'attachments', 'post_date',
-				'deleted', 'delete_reason', 'deleted_by']
+				'deleted', 'delete_reason', 'deleted_by', 'featured']
 		));
 		$this->fill($thread, $own);
 
@@ -213,6 +229,7 @@ class ThreadFactory extends AbstractFactory
 			'deleted' => (bool) $attributes['deleted'],
 			'delete_reason' => $attributes['delete_reason'],
 			'deleted_by' => $attributes['deleted_by'],
+			'featured' => !empty($attributes['featured']),
 		]);
 
 		return $thread;
@@ -244,6 +261,11 @@ class ThreadFactory extends AbstractFactory
 		});
 
 		$this->tag($entity, $pending);
+
+		if ($pending['featured'])
+		{
+			self::feature($entity, $pending['author']->user_id, $pending['date']);
+		}
 	}
 
 	/**

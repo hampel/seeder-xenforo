@@ -3,7 +3,7 @@
 /**
  * A little of everything this add-on can create, and no more than it takes to have one of each:
  * members, a forum, threads whose first posts cover the range of BB code, replies, a prefix,
- * attachments, tags, reactions, content awaiting approval and content soft-deleted, conversations,
+ * attachments, tags, reactions, a featured thread, content awaiting approval and content soft-deleted, conversations,
  * members with other ways into their accounts and members active without posting, members banned
  * and members whose mail bounced,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
@@ -17,7 +17,7 @@ class SampleSeeder extends AbstractSeeder
 {
 	public function run()
 	{
-		$this->call(ThreadSeeder::class, ['threads' => 8, 'replies' => 3, 'authors' => 4, 'prefix' => 1, 'reactions' => 2, 'states' => 1, 'tags' => 3]);
+		$this->call(ThreadSeeder::class, ['threads' => 8, 'replies' => 3, 'authors' => 4, 'prefix' => 1, 'reactions' => 2, 'states' => 1, 'tags' => 3, 'featured' => 1]);
 		$this->call(ConversationSeeder::class, ['conversations' => 2, 'messages' => 4, 'members' => 3]);
 		$this->call(UserSeeder::class, ['users' => 0, 'access' => 5, 'active' => 2, 'moderated' => 2, 'passwordless' => 1, 'no_auth' => 1, 'banned' => 2, 'bouncing' => 1]);
 		$this->call(UserFieldSeeder::class, ['fields' => 4, 'members' => 3]);
