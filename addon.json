@@ -1,6 +1,6 @@
 {
     "legacy_addon_id": "",
-    "title": "Seeder",
+    "title": "Seeder: test data generator",
     "description": "Test data generator for development installs",
     "version_id": 1000014,
     "version_string": "1.0.0a4",
