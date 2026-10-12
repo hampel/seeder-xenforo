@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Seed;
 
+use Hampel\Seeder\Factory\ForumFactory;
 use Hampel\Seeder\Factory\ResourceCategoryFactory;
 use Hampel\Seeder\Factory\ResourceFactory;
 use Hampel\Seeder\Factory\ResourceRatingFactory;
@@ -17,6 +18,11 @@ use Hampel\Seeder\Factory\UserFactory;
  *     reviews      how many ratings with a written review each resource gets (0)
  *     ratings      how many ratings with nothing written each resource gets as well (0)
  *     featured     how many of the resources are featured (0)
+ *     discussions  1 for each resource to have a discussion thread, in a forum made for them (0)
+ *     forum        the node id of an existing forum for those threads, instead of a new one
+ *
+ * With an existing `category`, its own discussion forum setting decides whether resources get
+ * threads; `discussions` and `forum` apply to the categories this seeder makes.
  *
  * Every resource is visible and has no file. A rating is by one of the other authors, or by a
  * new member where a resource needs more of them than there are. Nobody is alerted or mailed.
@@ -42,7 +48,12 @@ class ResourceSeeder extends AbstractSeeder
 		}
 		else
 		{
-			$categories = ResourceCategoryFactory::new()->count(max(1, $this->count('categories', 1)))->create();
+			$factory = ResourceCategoryFactory::new()->count(max(1, $this->count('categories', 1)));
+			if ($this->count('discussions', 0) || $this->param('forum') !== null)
+			{
+				$factory = $factory->withDiscussionForum($this->forum());
+			}
+			$categories = $factory->create();
 		}
 
 		$authors = UserFactory::new()->count(max(1, $this->count('authors', 3)))->create();
@@ -76,5 +87,25 @@ class ResourceSeeder extends AbstractSeeder
 				}
 			}
 		}
+	}
+
+	/**
+	 * The forum the discussion threads go in: the one named, or one made for them.
+	 */
+	private function forum()
+	{
+		$nodeId = $this->param('forum');
+		if ($nodeId === null)
+		{
+			return ForumFactory::new()->create(['title' => 'Resource discussions']);
+		}
+
+		$forum = \XF::em()->find('XF:Forum', $nodeId);
+		if (!$forum)
+		{
+			throw new \InvalidArgumentException("The 'forum' parameter must be the node id of a forum; there is none with id '{$nodeId}'");
+		}
+
+		return $forum;
 	}
 }

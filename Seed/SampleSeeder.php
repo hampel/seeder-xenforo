@@ -3,13 +3,14 @@
 /**
  * A little of everything this add-on can create, and no more than it takes to have one of each:
  * members, a forum, threads whose first posts cover the range of BB code, replies, a prefix,
- * attachments, tags, reactions, a featured thread, content awaiting approval and content
- * soft-deleted, a forum of each other type with threads of that type, search forums, conversations,
+ * attachments, tags, reactions, a featured thread, a sticky thread, a thread with a poll and
+ * votes, content awaiting approval and content soft-deleted, a forum of each other type with threads of that type, search forums, conversations,
  * members with other ways into their accounts and members active without posting, members banned
  * and members whose mail bounced,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
  * warnings and API keys - and, where the forum has Resource Manager or Media Gallery, resources -
- * rated, reviewed and one of them featured - and media items.
+ * rated, reviewed, one of them featured and each with a discussion thread - and media items
+ * with comments.
  *
  * It is what seeder:validate seeds and removes to prove cleaning leaves nothing behind, so
  * anything new the add-on learns to create belongs here too.
@@ -18,7 +19,7 @@ class SampleSeeder extends AbstractSeeder
 {
 	public function run()
 	{
-		$this->call(ThreadSeeder::class, ['threads' => 8, 'replies' => 3, 'authors' => 4, 'prefix' => 1, 'reactions' => 2, 'states' => 1, 'tags' => 3, 'featured' => 1]);
+		$this->call(ThreadSeeder::class, ['threads' => 8, 'replies' => 3, 'authors' => 4, 'prefix' => 1, 'reactions' => 2, 'states' => 1, 'tags' => 3, 'featured' => 1, 'sticky' => 1, 'polls' => 1]);
 		foreach (['article', 'question', 'suggestion'] AS $type)
 		{
 			$this->call(ThreadSeeder::class, ['threads' => 2, 'replies' => 2, 'authors' => 2, 'prefix' => 0, 'forum_type' => $type]);
@@ -31,11 +32,11 @@ class SampleSeeder extends AbstractSeeder
 		// content that belongs to another add-on, where the forum has it
 		if (\XF::isAddOnActive('XFRM'))
 		{
-			$this->call(ResourceSeeder::class, ['resources' => 3, 'categories' => 1, 'authors' => 2, 'reviews' => 1, 'ratings' => 1, 'featured' => 1]);
+			$this->call(ResourceSeeder::class, ['resources' => 3, 'categories' => 1, 'authors' => 2, 'reviews' => 1, 'ratings' => 1, 'featured' => 1, 'discussions' => 1]);
 		}
 		if (\XF::isAddOnActive('XFMG'))
 		{
-			$this->call(MediaSeeder::class, ['media' => 2, 'categories' => 1, 'albums' => 1, 'hidden' => 1, 'authors' => 2]);
+			$this->call(MediaSeeder::class, ['media' => 2, 'categories' => 1, 'albums' => 1, 'hidden' => 1, 'authors' => 2, 'comments' => 2]);
 		}
 
 		$this->call(WarningSeeder::class, ['warnings' => 5, 'definitions' => 2, 'members' => 2]);

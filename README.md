@@ -10,11 +10,12 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
 approval, unconfirmed, banned, bouncing - forums, threads with replies, tags, reactions, thread
-prefixes, image attachments, featured threads, content awaiting approval or soft-deleted, forums
-of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
+prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
+approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, who is online and server error log entries - and, where the forum
-has them, XenForo Resource Manager resources with ratings and reviews and XenForo Media Gallery
-media items - and removes them again. Polls and profile posts are not built yet.
+has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
+XenForo Media Gallery media items with comments - and removes them again. Profile posts are not
+built yet.
 
 Two things to know while it is one:
 
@@ -86,17 +87,21 @@ that is only overridden by another you gave is reported the same way.
 
 `seeder:run` takes the name of a seeder, and runs `Default` without one.
 
+**Anything marked *since 1.0.0b2* is not in the release before that one.** A run given a
+parameter the installed version does not have makes everything else, names the parameter as
+ignored and exits 1.
+
 | seeder | creates | parameters |
 |---|---|---|
-| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
+| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
 | `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
-| `SearchForum` | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
 | `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
-| `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3), `reviews` (0; ratings with a written review, for each resource), `ratings` (0; ratings with nothing written, for each resource), `featured` (0; how many of the resources are featured) |
-| `Media` | Media Gallery items: in a category, in an album, and where a guest cannot view them | `media` (6; in categories), `categories` (1), `category` (an existing media category's id), `albums` (1; each with two or three items), `hidden` (1; items in a private album), `authors` (3) |
+| `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3), `reviews` (0; ratings with a written review, for each resource), `ratings` (0; ratings with nothing written, for each resource), `featured` (0; how many of the resources are featured), `discussions` *(since 1.0.0b2)* (0; 1 gives each resource a discussion thread, in a forum made for them), `forum` *(since 1.0.0b2)* (an existing forum's node id for those threads) |
+| `Media` | Media Gallery items: in a category, in an album, and where a guest cannot view them | `media` (6; in categories), `categories` (1), `category` (an existing media category's id), `albums` (1; each with two or three items), `hidden` (1; items in a private album), `authors` (3), `comments` *(since 1.0.0b2)* (0; how many comments each item in a category gets) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
@@ -186,9 +191,9 @@ ThreadFactory::new()
 
 | factory | builds | states |
 |---|---|---|
-| `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()` |
-| `SearchForumFactory` | a search forum; the entity returned is its node | `searching($forums)` |
-| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])` |
+| `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()`, `allowing(...$threadTypes)`, all *(since 1.0.0b2)* |
+| `SearchForumFactory` *(since 1.0.0b2)* | a search forum; the entity returned is its node | `searching($forums)` |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])`, `withPoll($choices, $votes)` *(since 1.0.0b2)* |
 | `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)` |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
 | `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |
@@ -201,14 +206,14 @@ is prepared as a posted one is. Their notifications are never sent, nobody is al
 moderator log is written. Replies are dated after the post they follow and never before their
 author joined. Attachments are real PNG images. Links and images point at `example.com`.
 
-**Forum types.** `article()`, `question()` and `suggestion()` make a forum of that type, and
+**Forum types, since 1.0.0b2.** `article()`, `question()` and `suggestion()` make a forum of that type, and
 `type($id)` one of any type the forum has. It gets that type's settings as XenForo first offers
 them, and a thread made in it is of the type such a forum starts: an article, a question, a
 suggestion. Nothing more is made of the type - no question has a solution and no suggestion a
 vote. An attribute that is a column of the forum's own row, such as `allow_posting`, can be
 given to `create()` beside the node's.
 
-**Search forums.** `SearchForumFactory` makes a search forum listing every visible thread, and
+**Search forums, since 1.0.0b2.** `SearchForumFactory` makes a search forum listing every visible thread, and
 `searching($forums)` narrows it to the forums named. Its results are worked out as it is made,
 so make it after the threads it should list; from then on XenForo refreshes them as it does any
 search forum's, when a page view finds them more than ten minutes old.
@@ -219,6 +224,24 @@ ThreadFactory::new()->count(10)->for($questions)->create();
 
 SearchForumFactory::new()->searching($questions)->create(['sort_order' => 'title', 'sort_direction' => 'asc']);
 ```
+
+**Polls, since 1.0.0b2.** `withPoll(4, 6)` makes the thread a poll thread: a question, four
+choices, one vote a member, results anyone may see. Up to six of the members given to
+`recycle()` vote, and with nobody recycled the poll has no votes. A vote is written as a row and
+the poll's totals rebuilt, since XenForo's own voting queues a webhook.
+
+**A forum has to take poll threads, and a new forum does not.** XenForo's *Allowed thread types*
+setting starts empty, and a seeded forum is the same. A forum that `ThreadFactory` makes for a
+poll thread takes them; one you give it must, or the poll is refused:
+
+```php
+$forum = ForumFactory::new()->allowing('poll')->create();
+ThreadFactory::new()->for($forum)->recycle($members)->withPoll(4, 6)->create();
+```
+
+The `Thread` and `Default` seeders do this for the discussion forums they make when `polls` is
+set. A forum that does not take polls gets none: an article, question or suggestion forum, or an
+existing forum named with `forum` whose settings leave polls out.
 
 **Tags.** `withTags(['alpha', 'two words'])` files a thread under those tags as XenForo's own
 tagging does. A tag that does not exist is made, and removed with the batch; one that exists is
@@ -361,12 +384,13 @@ MediaFactory::new()->hidden()->create();                        // a guest canno
 
 | factory | creates | states |
 |---|---|---|
-| `ResourceCategoryFactory` | a resource category, with no discussion forum | |
+| `ResourceCategoryFactory` | a resource category, with no discussion forum | `withDiscussionForum($forum)` *(since 1.0.0b2)* |
 | `ResourceFactory` | a resource with its description and first version; visible, and with no file | `moderated()`, `featured()` |
 | `ResourceRatingFactory` | a member's rating of a resource, with a written review | `for($resource)`, `withoutReview()`, `rating($stars)`, `anonymous()` |
 | `MediaCategoryFactory` | a gallery category that holds media items | `forAlbums()` |
 | `AlbumFactory` | a member's album that anyone may view | `private()`, `membersOnly()`, `in($category)` |
 | `MediaFactory` | a media item: a real PNG, with the thumbnail the gallery makes of it | `inAlbum($album)`, `hidden()` |
+| `MediaCommentFactory` *(since 1.0.0b2)* | a member's comment on a media item | `for($media)`, `moderated()` |
 
 **A rating counts, and tells nobody.** It is of the resource's current version and by a member
 drawn from those given to `recycle()`, never the author and never the same member twice; if nobody
@@ -384,8 +408,26 @@ are removed with the batch.
 Who can view an item in a category is the forum's permissions, which Seeder does not set.
 
 **Nobody is told.** Resources go through Resource Manager's creator and albums through the
-gallery's, with notifications never sent; a media item is saved through its entity. A resource
-category has no discussion forum, so no thread is started.
+gallery's, with notifications never sent; a media item and a comment are saved through their
+entities.
+
+**Discussion threads, since 1.0.0b2.** A resource category has no discussion forum unless
+`withDiscussionForum()` gives it one - a new forum, or the one passed. Each resource posted in
+the category then has its discussion thread there: the resource's title, the first post the
+Resource Manager writes, and the thread type that shows the resource above the replies. The
+thread is dated as the resource is, recorded on its own and removed with the batch.
+
+```php
+$category = ResourceCategoryFactory::new()->withDiscussionForum()->create();
+ResourceFactory::new()->for($category)->count(3)->create();
+```
+
+The thread is made by `ThreadFactory` and not by the Resource Manager, which would date it now
+and queue a webhook. One difference follows: the resource's author does not watch the thread.
+
+**Comments, since 1.0.0b2.** `MediaCommentFactory::new()->for($media)->recycle($members)` makes
+a visible comment by one of those members. It counts towards the item's comments and its
+category's, is in the news feed, and an item's comments are dated in the order they were made.
 
 ### Warnings
 

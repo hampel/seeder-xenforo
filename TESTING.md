@@ -17,6 +17,10 @@ needs a person.
   entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
   with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
   files in `internal_data`. Removal deletes the entity, then any attachment files left unused.
+- **Polls** — through XenForo's poll creator, saved with the thread as the thread form saves
+  one. Votes are rows in `xf_poll_vote` followed by XenForo's own rebuild of the poll's totals,
+  since its voting queues a webhook. A discussion forum's *Allowed thread types* setting is
+  written into its type settings.
 - **Tags** — made through the `Tag` entity and applied through XenForo's tag repository, not the
   thread creator, which only tags where the author has permission. XenForo deletes a tag nobody
   uses, so cleaning often finds seeded tags already gone.
@@ -32,11 +36,14 @@ needs a person.
 - **Resource Manager resources** — through `XFRM:ResourceItem\Create`, as a fileless resource, with
   the dates of the resource, its description and its version all set by hand. A rating through
   its entity, since the rating service alerts the author; a featured resource through the featured
-  content entity, since that service writes the moderator log and queues a webhook.
+  content entity, since that service writes the moderator log and queues a webhook. A discussion
+  thread through `ThreadFactory`, with the category's forum hidden from the Resource Manager
+  while the resource saves so that it does not start one of its own.
 - **Bans** — the `XF:UserBan` entity, which sets the member's banned flag itself and adds the
   forum's banned user group where one is set.
 - **Media Gallery items** — a real PNG through the gallery's attachment handler, which makes the
-  holding record and thumbnail; the item through its entity; albums through `XFMG:Album\Creator`.
+  holding record and thumbnail; the item through its entity; albums through `XFMG:Album\Creator`;
+  comments through their entity, which rewrites the item's and the category's comment counts.
   Files in `internal_data/attachments`, `data/attachments` and `data/xfmg`.
 - **Other ways into an account, and activity without content** — connected account, two-step,
   passkey, remember key, confirmation, login IP, who-is-online, alert and follow rows, each through
@@ -250,6 +257,13 @@ searches and no others, with results dated when it was made; cleaning one leaves
 row, no results and no member's own results; the seeders give each of several forums threads in
 turn.
 
+For polls and sticky threads: a thread with a poll is a poll thread with its choices and no
+votes; votes come from the members given, one each, dated after the thread, and the poll's totals
+and cached results agree with the rows; a forum takes the thread types it is told to and a new
+one takes none; a poll is refused in a forum that does not take them and with fewer than two
+choices; cleaning leaves no poll, choice or vote; the seeders make the sticky threads and polls
+asked for, and give polls only to forums that take them.
+
 For bulk rows: a binary key survives being recorded and fits the column; members, guests and robots
 are written in the numbers, networks and ranges asked for, with known robot names and view dates
 inside the online window; a share can be put in one network, given IPv6 addresses or made stale;
@@ -334,6 +348,18 @@ asserts that creating a member leaves the table as it was.
   resource's rating count, sum and review count against its ratings, and check no alert was
   written. Stars on the rendered pages can only be seen on a forum without an add-on that
   hides them.
+- **Resource discussion threads and media comments**, which the suite cannot reach either. Seed
+  `Resource` with `discussions=1` and `Media` with `comments=3` as named batches and read back:
+  each resource's `discussion_thread_id`, that thread's type (`resource`) and that its dates are
+  the resource's; no row in `xf_thread_watch` for it; each item's comment count, last comment
+  date and its category's count; and the news feed row of each comment dated as the comment is.
+  Fetch a discussion thread, its resource and a media item as a guest. Last done on 2026-10-13
+  with both add-ons at 2.3.5: three resources, six comments, every page 200 on its own template,
+  no alert, moderator log or server error, cleaned with no row left.
+- **"No alert after seeding" holds for the seed, not for the forum afterwards.** XenForo's
+  trophy cron alerts a member who reaches a trophy, and a seeded member's first post can do that
+  once the job queue has run. That alert is XenForo's, goes to the seeded member and is removed
+  with them. Count alerts before the queue runs, or leave out the `trophy` content type.
 - **`seeder:validate` on a real forum, with the queue live**, after any change to a factory or to
   cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
   it is what found the permission-cache leak.

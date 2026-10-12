@@ -3,8 +3,10 @@
 use Hampel\Seeder\Factory\Concerns\FeaturesContent;
 use Hampel\Seeder\Factory\Concerns\WritesPosts;
 use XF\Mvc\Entity\Entity;
+use XF\Repository\PollRepository;
 use XF\Repository\TagRepository;
 use XF\Service\Thread\CreatorService;
+use XF\Service\Thread\TypeData\PollCreatorService;
 
 /**
  * A thread and its first post, written through XenForo's own thread creator so the message is
@@ -18,6 +20,8 @@ use XF\Service\Thread\CreatorService;
  *     deleted         true to soft-delete it once posted; delete_reason and deleted_by go with it
  *     tags            the names of tags to file it under - see withTags()
  *     featured        true to feature it - see featured()
+ *     poll            how many choices its poll has, 0 for no poll - see withPoll()
+ *     poll_votes      the most members who vote in the poll
  */
 class ThreadFactory extends AbstractFactory
 {
@@ -37,6 +41,8 @@ class ThreadFactory extends AbstractFactory
 			'message_parts' => [],
 			'tags' => [],
 			'attachments' => 0,
+			'poll' => 0,
+			'poll_votes' => 0,
 			'deleted' => false,
 			'delete_reason' => '',
 			'deleted_by' => null,
@@ -142,6 +148,38 @@ class ThreadFactory extends AbstractFactory
 	}
 
 	/**
+	 * With a poll, which makes it a poll thread: a question, so many choices, one vote each, and
+	 * results anyone may see.
+	 *
+	 * The forum has to take poll threads. A forum this factory makes for the thread does; one
+	 * given with for() or recycle() must - see ForumFactory::allowing() - or the poll is refused.
+	 *
+	 * Up to `$votes` of the members given to recycle() vote, each for one choice; with nobody
+	 * recycled the poll has no votes. A vote is written as a row and the poll's totals rebuilt,
+	 * since XenForo's own voting queues a webhook.
+	 *
+	 * @return static
+	 */
+	public function withPoll(int $choices = 4, int $votes = 0)
+	{
+		if ($choices < 2)
+		{
+			throw new \InvalidArgumentException('A poll needs at least two choices');
+		}
+
+		return $this->state(function (array $attributes) use ($choices, $votes)
+		{
+			$state = ['poll' => $choices, 'poll_votes' => $votes];
+			if ($attributes['node_id'] instanceof ForumFactory)
+			{
+				$state['node_id'] = $attributes['node_id']->allowing('poll');
+			}
+
+			return $state;
+		});
+	}
+
+	/**
 	 * @param int|Entity|PrefixFactory|null $prefix an existing prefix, or a new one if omitted
 	 *
 	 * @return static
@@ -162,9 +200,18 @@ class ThreadFactory extends AbstractFactory
 			'first_post_id' => $entity->first_post_id,
 		];
 
+		if ($entity->sticky)
+		{
+			$described['sticky'] = true;
+		}
 		if ($entity->featured)
 		{
 			$described['featured'] = true;
+		}
+		if ($entity->discussion_type === 'poll' && $entity->Poll)
+		{
+			$described['poll_id'] = $entity->Poll->poll_id;
+			$described['poll_voters'] = $entity->Poll->voter_count;
 		}
 		if ($entity->tags)
 		{
@@ -212,9 +259,15 @@ class ThreadFactory extends AbstractFactory
 		});
 
 		$thread = $creator->getThread();
+		$choices = (int) $attributes['poll'];
+		if ($choices)
+		{
+			$this->poll($creator, $forum, $choices);
+		}
+
 		$own = array_diff_key($attributes, array_flip(
 			['node_id', 'user_id', 'title', 'message', 'message_parts', 'tags', 'attachments', 'post_date',
-				'deleted', 'delete_reason', 'deleted_by', 'featured']
+				'deleted', 'delete_reason', 'deleted_by', 'featured', 'poll', 'poll_votes']
 		));
 		$this->fill($thread, $own);
 
@@ -230,6 +283,7 @@ class ThreadFactory extends AbstractFactory
 			'delete_reason' => $attributes['delete_reason'],
 			'deleted_by' => $attributes['deleted_by'],
 			'featured' => !empty($attributes['featured']),
+			'poll_votes' => $choices ? (int) $attributes['poll_votes'] : 0,
 		]);
 
 		return $thread;
@@ -261,11 +315,76 @@ class ThreadFactory extends AbstractFactory
 		});
 
 		$this->tag($entity, $pending);
+		$this->vote($entity, $pending);
 
 		if ($pending['featured'])
 		{
 			self::feature($entity, $pending['author']->user_id, $pending['date']);
 		}
+	}
+
+	/**
+	 * Give the thread being made a poll, as the thread form does: the thread becomes a poll
+	 * thread and the poll is saved with it.
+	 */
+	protected function poll(CreatorService $creator, Entity $forum, int $choices): void
+	{
+		if (!$forum->TypeHandler->isThreadTypeAllowed('poll', $forum))
+		{
+			throw new \InvalidArgumentException("Forum {$forum->node_id} is a {$forum->forum_type_id} forum, which does not take poll threads");
+		}
+
+		$faker = $this->context()->faker;
+
+		$responses = [];
+		while (count($responses) < $choices)
+		{
+			$responses[] = ucfirst($faker->words(mt_rand(1, 3), true)) . (count($responses) >= 20 ? ' ' . count($responses) : '');
+		}
+
+		$saver = \XF::service(PollCreatorService::class, $creator->getThread());
+		$poll = $saver->getPollCreator();
+		$poll->setQuestion(rtrim($faker->sentence(mt_rand(4, 8)), '.') . '?');
+		$poll->setMaxVotes('single');
+		$poll->setMaxResponses($choices);
+		$poll->setOptions(['change_vote' => true, 'public_votes' => false, 'view_results_unvoted' => true]);
+		$poll->addResponses(array_values(array_unique($responses)));
+		static::silence($poll->getPoll());
+
+		$creator->setDiscussionTypeAndDataRaw('poll');
+		$creator->setTypeDataSaver($saver);
+	}
+
+	/**
+	 * Votes in the thread's poll, from the members given to recycle(): a row each and then the
+	 * totals rebuilt, the way XenForo rebuilds them. Each is dated after the thread and after the
+	 * voter joined.
+	 */
+	protected function vote(Entity $thread, array $pending): void
+	{
+		$voters = $this->recycled['XF:User'] ?? [];
+		$wanted = min($pending['poll_votes'], count($voters));
+		$poll = $wanted ? \XF::em()->findOne('XF:Poll', ['content_type' => 'thread', 'content_id' => $thread->thread_id]) : null;
+		if (!$poll)
+		{
+			return;
+		}
+
+		$responseIds = $poll->Responses->keys();
+		$timeline = $this->context()->timeline;
+
+		shuffle($voters);
+		foreach (array_slice($voters, 0, mt_rand(1, $wanted)) AS $voter)
+		{
+			\XF::db()->insert('xf_poll_vote', [
+				'user_id' => $voter->user_id,
+				'poll_response_id' => $responseIds[mt_rand(0, count($responseIds) - 1)],
+				'poll_id' => $poll->poll_id,
+				'vote_date' => $timeline->after(max($pending['date'], $voter->register_date)),
+			], false, false, 'IGNORE');
+		}
+
+		\XF::repository(PollRepository::class)->rebuildPollData($poll->poll_id);
 	}
 
 	/**

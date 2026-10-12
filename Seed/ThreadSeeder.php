@@ -28,6 +28,11 @@ use XF\Repository\TagRepository;
  *     tags      how many different tags to file the threads under, each thread getting up to
  *               three of them; 0 for none (0)
  *     featured  how many of the threads are featured (0)
+ *     sticky    how many of the threads are sticky (0)
+ *     polls     how many of the threads have a poll, with up to as many votes as there are
+ *               authors (0). A discussion forum made by the run takes poll threads when this
+ *               is set. A forum that does not take them gets none: an article, question or
+ *               suggestion forum, or an existing forum whose settings leave polls out
  *     states    1 to add threads and replies that are awaiting approval or soft-deleted, about
  *               one in six of each; 0 for everything visible (0)
  *
@@ -120,6 +125,42 @@ class ThreadSeeder extends AbstractSeeder
 			});
 		}
 
+		$sticky = $this->count('sticky', 0);
+		if ($sticky)
+		{
+			$threads = $threads->state(function () use (&$sticky)
+			{
+				return $sticky-- > 0 ? ['sticky' => true] : [];
+			});
+		}
+
+		$polls = $this->count('polls', 0);
+		if ($polls)
+		{
+			$votes = count($authors);
+
+			// which of the forums take poll threads; one that does not gets none
+			$takesPolls = [];
+			foreach ($nodeIds AS $nodeId)
+			{
+				$forum = \XF::em()->find('XF:Forum', $nodeId);
+				$takesPolls[$nodeId] = $forum && $forum->TypeHandler->isThreadTypeAllowed('poll', $forum);
+			}
+
+			$threads = $threads->state(function (array $attributes) use (&$polls, $votes, $takesPolls, $nodeIds)
+			{
+				// with one forum the thread has not been given it yet
+				$nodeId = is_scalar($attributes['node_id']) ? $attributes['node_id'] : $nodeIds[0];
+				if ($polls <= 0 || empty($takesPolls[$nodeId]))
+				{
+					return [];
+				}
+				$polls--;
+
+				return ['poll' => mt_rand(2, 5), 'poll_votes' => $votes];
+			});
+		}
+
 		if ($this->count('states', 0))
 		{
 			$hidden = function ($index)
@@ -163,7 +204,10 @@ class ThreadSeeder extends AbstractSeeder
 		$type = (string) $this->param('forum_type', 'discussion');
 		if ($nodeId === null)
 		{
-			return ForumFactory::new()->type($type)->create();
+			$forum = ForumFactory::new()->type($type);
+
+			// polls were asked for, so a discussion forum made here takes them
+			return ($type === 'discussion' && $this->count('polls', 0) ? $forum->allowing('poll') : $forum)->create();
 		}
 
 		$forum = \XF::em()->find('XF:Forum', $nodeId);

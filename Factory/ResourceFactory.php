@@ -10,6 +10,11 @@ use XF\Mvc\Entity\Entity;
  *
  * Written through the Resource Manager's own creator, with its notifications never sent.
  *
+ * Where the category names a discussion forum the resource gets its discussion thread there, as
+ * a posted one does: the same title, first post and thread type. That thread is made by
+ * ThreadFactory and not by the Resource Manager, which would date it now and queue a webhook; it
+ * is recorded on its own and removed with the batch. Its author does not watch it.
+ *
  * Besides the resource's columns, the attributes are:
  *
  *     message          the description, as BB code
@@ -72,6 +77,12 @@ class ResourceFactory extends AbstractFactory
 	{
 		self::unfeature($entity);
 
+		// removing a resource closes or hides its discussion thread, which saves the thread
+		if ($entity->discussion_thread_id && $entity->Discussion)
+		{
+			static::silence($entity->Discussion);
+		}
+
 		parent::remove($entity);
 	}
 
@@ -82,7 +93,8 @@ class ResourceFactory extends AbstractFactory
 			'resource_category_id' => $entity->resource_category_id,
 			'user_id' => $entity->user_id,
 			'resource_state' => $entity->resource_state,
-		] + ($entity->featured ? ['featured' => true] : []);
+		] + ($entity->featured ? ['featured' => true] : [])
+			+ ($entity->discussion_thread_id ? ['discussion_thread_id' => $entity->discussion_thread_id] : []);
 	}
 
 	protected function newEntity(array $attributes): Entity
@@ -133,7 +145,10 @@ class ResourceFactory extends AbstractFactory
 		}
 
 		self::$pending = self::$pending ?? new \WeakMap();
-		self::$pending[$resource] = ['service' => $creator, 'author' => $author, 'date' => $date, 'featured' => !empty($attributes['featured'])];
+		self::$pending[$resource] = [
+			'service' => $creator, 'author' => $author, 'date' => $date, 'featured' => !empty($attributes['featured']),
+			'category' => $category, 'message' => $attributes['message'],
+		];
 
 		return $resource;
 	}
@@ -142,21 +157,77 @@ class ResourceFactory extends AbstractFactory
 	{
 		$pending = self::$pending[$entity];
 		$creator = $pending['service'];
+		$category = $pending['category'];
 
-		\XF::asVisitor($pending['author'], function () use ($creator)
+		// the Resource Manager would start the discussion thread itself, dated now and with its
+		// webhook on; it is kept from seeing the forum while it saves, and the thread made below
+		$forum = $category->thread_node_id ? $category->ThreadForum : null;
+		if ($forum)
 		{
-			if (!$creator->validate($errors))
-			{
-				throw new \RuntimeException('Resource Manager refused the resource: ' . implode(' ', array_map('strval', $errors)));
-			}
+			$category->hydrateRelation('ThreadForum', null);
+		}
 
-			$creator->save();
-		});
+		try
+		{
+			\XF::asVisitor($pending['author'], function () use ($creator)
+			{
+				if (!$creator->validate($errors))
+				{
+					throw new \RuntimeException('Resource Manager refused the resource: ' . implode(' ', array_map('strval', $errors)));
+				}
+
+				$creator->save();
+			});
+		}
+		finally
+		{
+			if ($forum)
+			{
+				$category->hydrateRelation('ThreadForum', $forum);
+			}
+		}
+
+		if ($forum)
+		{
+			$this->discuss($entity, $forum, $pending);
+		}
 
 		if ($pending['featured'])
 		{
 			self::feature($entity, $pending['author']->user_id, $pending['date']);
 		}
+	}
+
+	/**
+	 * The resource's discussion thread, worded as the Resource Manager words it.
+	 */
+	protected function discuss(Entity $resource, Entity $forum, array $pending): void
+	{
+		$app = \XF::app();
+		$author = $pending['author'];
+
+		$message = \XF::phrase('xfrm_resource_thread_create', [
+			'title' => $resource->title_,
+			'tag_line' => $resource->tag_line_,
+			'username' => $author->username,
+			'snippet' => $app->bbCode()->render(
+				$app->stringFormatter()->wholeWordTrim($pending['message'], 500), 'bbCodeClean', 'post', null
+			),
+			'resource_link' => $app->router('public')->buildLink('canonical:resources', $resource),
+		])->render('raw');
+
+		$thread = ThreadFactory::new()->create([
+			'node_id' => $forum->node_id,
+			'user_id' => $author->user_id,
+			'title' => $resource->getExpectedThreadTitle(),
+			'message' => $message,
+			'post_date' => $pending['date'],
+			'discussion_type' => 'resource',
+			'discussion_state' => $resource->resource_state,
+			'prefix_id' => $pending['category']->thread_prefix_id,
+		]);
+
+		$resource->fastUpdate('discussion_thread_id', $thread->thread_id);
 	}
 
 	protected function clockFor(Entity $entity): ?int

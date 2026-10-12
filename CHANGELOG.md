@@ -10,8 +10,11 @@ First release.
   keys, who is online, and the server error log
 - forums can be of any type - article, question, suggestion - with threads of that type, and
   search forums list the threads of the forums they are given
+- threads can be sticky and can have a poll with votes, and a forum can be told which other
+  types of thread it takes
 - Resource Manager resources and Media Gallery items, where those add-ons are installed;
-  resources can be rated, reviewed and featured
+  resources can be rated, reviewed and featured and can have discussion threads, and media
+  items can have comments
 - members can be given other ways into their account (a connected account, two-step
   verification, a passkey, a remember key, a pending confirmation) and activity without content
 - members awaiting approval are in the approval queue at the date they registered, so a seeded

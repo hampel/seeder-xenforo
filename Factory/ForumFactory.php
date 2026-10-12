@@ -9,6 +9,9 @@ use XF\Mvc\Entity\Entity;
  *
  * An attribute that is a column of the forum row and not of the node - `forum_type_id`,
  * `allow_posting`, `moderate_threads` - is set on the forum row.
+ *
+ * `allowed_thread_types` is not a column: it is the list allowing() keeps, which goes into the
+ * forum's type settings.
  */
 class ForumFactory extends AbstractFactory
 {
@@ -48,6 +51,21 @@ class ForumFactory extends AbstractFactory
 	/** @return static */
 	public function suggestion() { return $this->type('suggestion'); }
 
+	/**
+	 * A discussion forum that also takes threads of these types - `poll`, `article`, `question`,
+	 * `suggestion` - as its *Allowed thread types* setting does. A forum left alone takes
+	 * discussions only, as a new forum in XenForo does. Only a discussion forum has the setting.
+	 *
+	 * @return static
+	 */
+	public function allowing(string ...$threadTypes)
+	{
+		return $this->state(function (array $attributes) use ($threadTypes)
+		{
+			return ['allowed_thread_types' => array_values(array_unique(array_merge($attributes['allowed_thread_types'] ?? [], $threadTypes)))];
+		});
+	}
+
 	public static function describe(Entity $entity): array
 	{
 		$described = ['title' => $entity->title];
@@ -57,13 +75,20 @@ class ForumFactory extends AbstractFactory
 		{
 			$described['forum_type_id'] = $forum->forum_type_id;
 		}
+		if ($forum && !empty($forum->type_config['allowed_thread_types']))
+		{
+			$described['allowed_thread_types'] = $forum->type_config['allowed_thread_types'];
+		}
 
 		return $described;
 	}
 
 	protected function newEntity(array $attributes): Entity
 	{
-		$type = $attributes['forum_type_id'] ?? null;
+		$allowed = $attributes['allowed_thread_types'] ?? [];
+		unset($attributes['allowed_thread_types']);
+
+		$type = $attributes['forum_type_id'] ?? ($allowed ? 'discussion' : null);
 		if ($type !== null)
 		{
 			$handler = \XF::app()->forumType($type, false);
@@ -73,6 +98,23 @@ class ForumFactory extends AbstractFactory
 			}
 
 			$attributes += ['type_config' => $handler->getDefaultTypeConfig()];
+		}
+
+		if ($allowed)
+		{
+			if (!array_key_exists('allowed_thread_types', $attributes['type_config']))
+			{
+				throw new \InvalidArgumentException("Only a discussion forum takes other types of thread; a {$type} forum does not");
+			}
+			foreach ($allowed AS $threadType)
+			{
+				if (!\XF::app()->threadType($threadType, false))
+				{
+					throw new \InvalidArgumentException("'{$threadType}' is not a thread type this forum has");
+				}
+			}
+
+			$attributes['type_config']['allowed_thread_types'] = $allowed;
 		}
 
 		return $this->newNode($attributes);

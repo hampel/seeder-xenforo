@@ -2,6 +2,7 @@
 
 use Hampel\Seeder\Factory\AlbumFactory;
 use Hampel\Seeder\Factory\MediaCategoryFactory;
+use Hampel\Seeder\Factory\MediaCommentFactory;
 use Hampel\Seeder\Factory\MediaFactory;
 use Hampel\Seeder\Factory\UserFactory;
 
@@ -17,6 +18,7 @@ use Hampel\Seeder\Factory\UserFactory;
  *     albums       how many albums anyone may view, each with two or three items (1)
  *     hidden       how many items in a private album, which a guest cannot view (1)
  *     authors      how many members to create as their authors (3)
+ *     comments     how many comments each item in a category gets, from the authors (0)
  *
  * Nobody is alerted or mailed.
  */
@@ -47,7 +49,13 @@ class MediaSeeder extends AbstractSeeder
 		$authors = UserFactory::new()->count(max(1, $this->count('authors', 3)))->create();
 		$media = MediaFactory::new()->recycle($authors);
 
-		$media->recycle($categories)->count($this->count('media', 6))->create();
+		$items = $media->recycle($categories)->count($this->count('media', 6));
+		$comments = $this->count('comments', 0);
+		if ($comments)
+		{
+			$items = $items->has(MediaCommentFactory::new()->count($comments));
+		}
+		$items->create();
 
 		for ($i = $this->count('albums', 1); $i > 0; $i--)
 		{
