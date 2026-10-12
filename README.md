@@ -5,6 +5,9 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
+[Resource page](https://xenforo.com/community/resources/seeder-test-data-generator.10896/) ·
+[support thread](https://xenforo.com/community/threads/seeder-test-data-generator.240676/)
+
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
 approval, unconfirmed, banned, bouncing - forums, threads with replies, tags, reactions, thread
 prefixes, image attachments, featured threads, content awaiting approval or soft-deleted,
