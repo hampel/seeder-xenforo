@@ -10,8 +10,8 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
 approval, unconfirmed, banned, bouncing - forums, threads with replies, tags, reactions, thread
-prefixes, image attachments, featured threads, content awaiting approval or soft-deleted,
-conversations, custom user fields with members' values, user upgrades held and run out, warning
+prefixes, image attachments, featured threads, content awaiting approval or soft-deleted, forums
+of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, who is online and server error log entries - and, where the forum
 has them, XenForo Resource Manager resources with ratings and reviews and XenForo Media Gallery
 media items - and removes them again. Polls and profile posts are not built yet.
@@ -88,9 +88,10 @@ that is only overridden by another you gave is reported the same way.
 
 | seeder | creates | parameters |
 |---|---|---|
-| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
+| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
 | `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `SearchForum` | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
 | `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
@@ -185,7 +186,8 @@ ThreadFactory::new()
 
 | factory | builds | states |
 |---|---|---|
-| `ForumFactory` | a forum; the entity returned is its node | |
+| `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()` |
+| `SearchForumFactory` | a search forum; the entity returned is its node | `searching($forums)` |
 | `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])` |
 | `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)` |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
@@ -198,6 +200,25 @@ The `with...()` states add up: `->withQuote()->withList()` gives a first post wi
 is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no
 moderator log is written. Replies are dated after the post they follow and never before their
 author joined. Attachments are real PNG images. Links and images point at `example.com`.
+
+**Forum types.** `article()`, `question()` and `suggestion()` make a forum of that type, and
+`type($id)` one of any type the forum has. It gets that type's settings as XenForo first offers
+them, and a thread made in it is of the type such a forum starts: an article, a question, a
+suggestion. Nothing more is made of the type - no question has a solution and no suggestion a
+vote. An attribute that is a column of the forum's own row, such as `allow_posting`, can be
+given to `create()` beside the node's.
+
+**Search forums.** `SearchForumFactory` makes a search forum listing every visible thread, and
+`searching($forums)` narrows it to the forums named. Its results are worked out as it is made,
+so make it after the threads it should list; from then on XenForo refreshes them as it does any
+search forum's, when a page view finds them more than ten minutes old.
+
+```php
+$questions = ForumFactory::new()->question()->create();
+ThreadFactory::new()->count(10)->for($questions)->create();
+
+SearchForumFactory::new()->searching($questions)->create(['sort_order' => 'title', 'sort_direction' => 'asc']);
+```
 
 **Tags.** `withTags(['alpha', 'two words'])` files a thread under those tags as XenForo's own
 tagging does. A tag that does not exist is made, and removed with the batch; one that exists is

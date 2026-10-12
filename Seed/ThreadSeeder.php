@@ -18,6 +18,8 @@ use XF\Repository\TagRepository;
  *     threads   how many (12)
  *     replies   the most replies a thread gets; each gets between none and this many (5)
  *     forum     the node id of an existing forum to post in; a new forum is made if omitted
+ *     forum_type the type of the forum that is made: discussion, article, question or
+ *               suggestion (discussion); its threads are of the type such a forum starts
  *     authors   how many members to create as authors (5)
  *     prefix    1 to create a thread prefix and give it to some threads, 0 for none (1)
  *     reactions the most reactions a post gets, from the authors; each gets between none and
@@ -66,8 +68,17 @@ class ThreadSeeder extends AbstractSeeder
 		$threads = ThreadFactory::new()
 			->count($this->count('threads', 12))
 			->recycle($authors)
-			->recycle($forums)
 			->sequence(...$variations);
+
+		// across several forums the threads go to each in turn, so none is left empty
+		$nodeIds = [];
+		foreach ($forums AS $forum)
+		{
+			$nodeIds[] = $forum->node_id;
+		}
+		$threads = count($nodeIds) > 1
+			? $threads->sequence(function ($index) use ($nodeIds) { return ['node_id' => $nodeIds[$index % count($nodeIds)]]; })
+			: $threads->recycle($forums);
 
 		// a member cannot react to their own post, so each post has one fewer to draw on than
 		// there are authors; past that the factory would make new members to do the reacting
@@ -149,9 +160,10 @@ class ThreadSeeder extends AbstractSeeder
 	private function forum()
 	{
 		$nodeId = $this->param('forum');
+		$type = (string) $this->param('forum_type', 'discussion');
 		if ($nodeId === null)
 		{
-			return ForumFactory::new()->create();
+			return ForumFactory::new()->type($type)->create();
 		}
 
 		$forum = \XF::em()->find('XF:Forum', $nodeId);

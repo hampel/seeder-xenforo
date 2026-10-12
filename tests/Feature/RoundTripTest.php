@@ -36,7 +36,8 @@ class RoundTripTest extends TestCase
 
 		$this->assertNull($result['seed_failure']);
 		$this->assertSame([], $result['failed']);
-		$this->assertSame(9, $result['created']['XF:Thread']);
+		$this->assertSame(18, $result['created']['XF:Thread']);
+		$this->assertSame(8, $result['created']['XF:Node'], 'two forums, one of each other type, and a forum with two search forums');
 		$this->assertSame(5, $result['created']['XF:Warning']);
 		$this->assertSame(2, $result['created']['XF:WarningDefinition']);
 		$this->assertSame(1, $result['created']['XF:ThreadPrefix']);

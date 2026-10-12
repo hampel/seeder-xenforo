@@ -243,6 +243,13 @@ their post's date; a featured thread has XenForo's featured content record at th
 writes no moderator log, and loses the record when cleaned; all of it cleans back to the
 starting counts.
 
+For forum types and search forums: a forum of each type has that type's settings and its threads
+are of its type; a type the forum does not have is refused; an attribute the node has no column
+for is set on the forum's own row; a search forum lists the visible threads of the forums it
+searches and no others, with results dated when it was made; cleaning one leaves no node, no
+row, no results and no member's own results; the seeders give each of several forums threads in
+turn.
+
 For bulk rows: a binary key survives being recorded and fits the column; members, guests and robots
 are written in the numbers, networks and ranges asked for, with known robot names and view dates
 inside the online window; a share can be put in one network, given IPv6 addresses or made stale;
