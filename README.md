@@ -5,11 +5,20 @@ who need a forum with members and dated content to test against, and it is not f
 
 By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 
-**Early development.** It creates members, forums, threads with replies, tags, reactions, thread
-prefixes, image attachments, content awaiting approval or soft-deleted, conversations, custom
-user fields with members' values, user upgrades held and run out, warning definitions, warnings,
-API keys, who is online and server error log entries - and, where the forum has them, XenForo
-Resource Manager resources and XenForo Media Gallery media items - and removes them again. Polls and profile posts are not built yet.
+**This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
+approval, unconfirmed, banned, bouncing - forums, threads with replies, tags, reactions, thread
+prefixes, image attachments, featured threads, content awaiting approval or soft-deleted,
+conversations, custom user fields with members' values, user upgrades held and run out, warning
+definitions, warnings, API keys, who is online and server error log entries - and, where the forum
+has them, XenForo Resource Manager resources with ratings and reviews and XenForo Media Gallery
+media items - and removes them again. Polls and profile posts are not built yet.
+
+Two things to know while it is one:
+
+- **The classes your own seeders and factories build on may change before 1.0**, their namespace
+  included. See *Your own seeders and factories*.
+- **It has been run beside a few dozen add-ons, not beside yours.** See *Limits* for what another
+  add-on can do that this one cannot stop.
 
 ## Requirements
 
@@ -304,6 +313,9 @@ XenForo's upgrade service and upgrade repository instead, so an add-on that acts
 upgraded or an upgrade runs out acts for these too - **which can mean sending the member's details
 to another system.** The seeder says so before it starts. Either way the member is not alerted.
 
+**The hooks route has tests of what it writes and has not been run beside an add-on that hooks
+upgrades.** Treat `hooks=1` and `withHooks()` as untried on a real forum.
+
 XenForo does not delete payment profiles; a seeded one is removed by deleting its row, and is left
 and reported where anything still refers to it.
 
@@ -484,7 +496,9 @@ line, and for a job the job manager's frame in the stack trace.
 ### Your own seeders and factories
 
 **Any add-on can carry seeders for its own content.** Put a class in the add-on's `Seed` directory
-and run it as `Vendor/AddOn:Name`:
+and run it as `Vendor/AddOn:Name`. Until 1.0, `AbstractSeeder`, `AbstractFactory` and
+`AbstractBulkFactory` may still change, and may move to another namespace; the changelog will say
+when they do.
 
 ```php
 namespace Vendor\AddOn\Seed;
@@ -640,6 +654,11 @@ forgets can never be cleaned.
   unless statistics are rebuilt, and if they are rebuilt while seeded content exists, cleaning
   does not take it back out. Rebuild again after cleaning.
 - **Seeding and cleaning both take about a second per fifty posts.**
+- **Another add-on may tell someone.** Seeded content is saved through XenForo's entities with
+  XenForo's own mail, alerts, push notifications, webhooks and moderator log switched off or
+  never called. An add-on that sends something of its own when a member, post or resource is
+  saved - to a chat channel, a mailing service, a CRM - is not switched off by any of that. Try a
+  small run on a forum that cannot reach the outside before a large one on a forum that can.
 - **Another add-on's own tables are that add-on's to clean.** Removal goes through XenForo's
   entities, so an add-on that cleans up when a member or post is deleted is handled; one that does
   not will show as a warning in `seeder:validate`.

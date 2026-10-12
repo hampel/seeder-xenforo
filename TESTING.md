@@ -227,14 +227,21 @@ across eighteen tables. A moderated member is in the approval queue at their reg
 date given to one is the date in the queue, a member in any other state is not in it, and
 removing the member takes the entry with them. A member without a password has XenForo's
 no-password scheme and cannot log in with one while an ordinary member can; a member without
-authentication has no such record, has every other row, and can still be removed.
+authentication has no such record, has every other row, and can still be removed. A banned member
+has XenForo's ban record, dated after they joined, and the flag it sets; one moderator bans
+however many are made, or the one named; a permanent ban takes a moderated member out of the
+queue and a temporary one does not; with a banned user group set the member is in it, and
+cleaning takes the ban, the group change and the membership; staff are refused as banned or
+bouncing before anyone is created, and so is a ban that has already run out.
 
 For reactions and states: a reaction updates the post's summary and its author's score, is dated
 after the reactor joined, appears in the feed with its own date and alerts nobody; reactors are
 never the author and never repeat; a moderated thread and reply are in the approval queue and not
 counted; a deleted thread was posted, replied to, reacted to and then deleted, its log dated after
 its last reply, its reactions no longer counted, and no moderator log written; attachments carry
-their post's date; all of it cleans back to the starting counts.
+their post's date; a featured thread has XenForo's featured content record at the thread's date,
+writes no moderator log, and loses the record when cleaned; all of it cleans back to the
+starting counts.
 
 For bulk rows: a binary key survives being recorded and fits the column; members, guests and robots
 are written in the numbers, networks and ranges asked for, with known robot names and view dates
@@ -324,6 +331,10 @@ asserts that creating a member leaves the table as it was.
   it is what found the permission-cache leak.
 - **That a seeded error log really does stay out of a chat channel.** Only the dates were checked,
   against the rule the poller on the development forum uses; the poller itself was not run.
+- **`AlbumFactory::in()`**, which no seeder uses. Run by hand on 2026-10-12 with Media Gallery
+  2.3.5: an album in a new album category and one in a given category, a media item in the
+  second, each page 200 to a guest once the run's jobs had drained, cleaned with no row or file
+  left.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo
