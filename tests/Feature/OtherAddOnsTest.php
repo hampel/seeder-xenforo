@@ -8,6 +8,7 @@ use Hampel\Seeder\Factory\MediaCategoryFactory;
 use Hampel\Seeder\Factory\MediaFactory;
 use Hampel\Seeder\Factory\ResourceCategoryFactory;
 use Hampel\Seeder\Factory\ResourceFactory;
+use Hampel\Seeder\Factory\ResourceRatingFactory;
 use Hampel\Seeder\NullRecorder;
 use Hampel\Seeder\Seed\SampleSeeder;
 use Hampel\Seeder\Timeline;
@@ -50,7 +51,7 @@ class OtherAddOnsTest extends TestCase
 		$this->expectExceptionMessage("need the {$addOn} add-on, which is not installed and active on this forum");
 
 		// attributes given, so that nothing has to be created before the factory is asked
-		$factory::new()->make(['user_id' => 1, 'resource_category_id' => 1, 'category_id' => 1, 'album_id' => 0]);
+		$factory::new()->make(['user_id' => 1, 'resource_category_id' => 1, 'category_id' => 1, 'album_id' => 0, 'resource_id' => 1]);
 	}
 
 	public static function factories(): array
@@ -58,6 +59,7 @@ class OtherAddOnsTest extends TestCase
 		return [
 			'resource category' => [ResourceCategoryFactory::class, 'XFRM'],
 			'resource' => [ResourceFactory::class, 'XFRM'],
+			'resource rating' => [ResourceRatingFactory::class, 'XFRM'],
 			'media category' => [MediaCategoryFactory::class, 'XFMG'],
 			'album' => [AlbumFactory::class, 'XFMG'],
 			'media item' => [MediaFactory::class, 'XFMG'],

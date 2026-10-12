@@ -13,6 +13,7 @@ use XF\Mvc\Entity\Entity;
  *
  *     message          the description, as BB code
  *     version_string   the first version's number
+ *     featured         true to feature it - see featured()
  */
 class ResourceFactory extends AbstractFactory
 {
@@ -52,6 +53,29 @@ class ResourceFactory extends AbstractFactory
 	/** @return static awaiting approval by a moderator */
 	public function moderated() { return $this->state(['resource_state' => 'moderated']); }
 
+	/**
+	 * Featured, with the featured content record XenForo keeps and not the flag alone: it has no
+	 * image or title of its own, and the resource's author is named as the one who featured it.
+	 * Written through the entity, since XenForo's own service writes the moderator log and queues
+	 * a webhook.
+	 *
+	 * @return static
+	 */
+	public function featured() { return $this->state(['featured' => true]); }
+
+	/**
+	 * The featured content record is the resource's, and goes with it.
+	 */
+	public static function remove(Entity $entity): void
+	{
+		if ($entity->Feature)
+		{
+			$entity->Feature->delete();
+		}
+
+		parent::remove($entity);
+	}
+
 	public static function describe(Entity $entity): array
 	{
 		return [
@@ -59,7 +83,7 @@ class ResourceFactory extends AbstractFactory
 			'resource_category_id' => $entity->resource_category_id,
 			'user_id' => $entity->user_id,
 			'resource_state' => $entity->resource_state,
-		];
+		] + ($entity->featured ? ['featured' => true] : []);
 	}
 
 	protected function newEntity(array $attributes): Entity
@@ -95,7 +119,7 @@ class ResourceFactory extends AbstractFactory
 
 		$resource = $creator->getResource();
 		$this->fill($resource, array_diff_key($attributes, array_flip(
-			['resource_category_id', 'user_id', 'title', 'message', 'version_string', 'resource_date']
+			['resource_category_id', 'user_id', 'title', 'message', 'version_string', 'resource_date', 'featured']
 		)));
 
 		// each of these dates is otherwise a column default, which is the moment the first
@@ -110,7 +134,7 @@ class ResourceFactory extends AbstractFactory
 		}
 
 		self::$pending = self::$pending ?? new \WeakMap();
-		self::$pending[$resource] = ['service' => $creator, 'author' => $author, 'date' => $date];
+		self::$pending[$resource] = ['service' => $creator, 'author' => $author, 'date' => $date, 'featured' => !empty($attributes['featured'])];
 
 		return $resource;
 	}
@@ -129,6 +153,28 @@ class ResourceFactory extends AbstractFactory
 
 			$creator->save();
 		});
+
+		if ($pending['featured'])
+		{
+			$handler = \XF::repository('XF:FeaturedContent')->getFeatureHandler('resource', true);
+
+			$feature = \XF::em()->create('XF:FeaturedContent');
+			$feature->bulkSet([
+				'content_type' => 'resource',
+				'content_id' => $entity->resource_id,
+				'content_container_id' => $handler->getContentContainerId($entity),
+				'content_user_id' => $handler->getContentUserId($entity),
+				'content_username' => $handler->getContentUsername($entity),
+				'content_date' => $handler->getContentDate($entity),
+				'content_visible' => $handler->getContentVisibility($entity),
+				'feature_user_id' => $pending['author']->user_id,
+				// otherwise a column default, the moment the first feature of the run was made
+				'feature_date' => $pending['date'],
+			]);
+			$feature->save();
+
+			$entity->fastUpdate('featured', true);
+		}
 	}
 
 	protected function clockFor(Entity $entity): ?int
