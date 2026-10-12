@@ -18,6 +18,9 @@ abstract class TestCase extends BaseTestCase
 	 */
 	protected $addonsToLoad = ['Hampel/Seeder'];
 
+	/** @var \Mockery\MockInterface|null stands in for XenForo's member statistics in a transaction */
+	protected $memberStats;
+
 	/**
 	 * Every test starts with seeding switched off and nothing else configured, whatever the
 	 * install's own config.php holds. A test that needs the guard open says so.
@@ -35,6 +38,14 @@ abstract class TestCase extends BaseTestCase
 		if (in_array(UsesDatabaseTransactions::class, class_uses($this), true))
 		{
 			$this->fakesRegistry();
+
+			// Saving a new member empties the cached staff list, which is one row in a table
+			// XenForo's own cron rewrites every ten minutes. Held for the length of a test, that
+			// row is a second race of the same kind, and the registry fake does not reach it.
+			$this->memberStats = $this->mockRepository('XF:MemberStat', function ($mock)
+			{
+				$mock->shouldReceive('emptyCache')->andReturn(true);
+			});
 		}
 	}
 

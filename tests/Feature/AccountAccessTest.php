@@ -45,6 +45,17 @@ class AccountAccessTest extends TestCase
 		parent::tearDown();
 	}
 
+	public function test_creating_a_member_does_not_write_the_table_xenforos_cron_rewrites()
+	{
+		$this->recordInto('test-member-stat');
+		$before = $this->app()->db()->fetchAll('SELECT member_stat_id, cache_expiry, MD5(IFNULL(cache_results, \'\')) AS results FROM xf_member_stat ORDER BY member_stat_id');
+
+		UserFactory::new()->create();
+
+		$this->memberStats->shouldHaveReceived('emptyCache')->with('staff_members');
+		$this->assertSame($before, $this->app()->db()->fetchAll('SELECT member_stat_id, cache_expiry, MD5(IFNULL(cache_results, \'\')) AS results FROM xf_member_stat ORDER BY member_stat_id'));
+	}
+
 	public function test_each_way_in_writes_the_rows_xenforo_keeps_for_it()
 	{
 		$recorder = $this->recordInto('test-access');
