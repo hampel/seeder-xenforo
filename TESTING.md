@@ -30,7 +30,11 @@ needs a person.
   service; XenForo's upgrade service and repository only when hooks are asked for. A payment
   profile, which XenForo never deletes, is removed by deleting its row.
 - **Resource Manager resources** — through `XFRM:ResourceItem\Create`, as a fileless resource, with
-  the dates of the resource, its description and its version all set by hand.
+  the dates of the resource, its description and its version all set by hand. A rating through
+  its entity, since the rating service alerts the author; a featured resource through the featured
+  content entity, since that service writes the moderator log and queues a webhook.
+- **Bans** — the `XF:UserBan` entity, which sets the member's banned flag itself and adds the
+  forum's banned user group where one is set.
 - **Media Gallery items** — a real PNG through the gallery's attachment handler, which makes the
   holding record and thumbnail; the item through its entity; albums through `XFMG:Album\Creator`.
   Files in `internal_data/attachments`, `data/attachments` and `data/xfmg`.
@@ -310,7 +314,11 @@ asserts that creating a member leaves the table as it was.
 - **`seeder:validate` on a forum with Resource Manager and Media Gallery installed** is the only
   check of resources and media. Besides its table counts, count the files under `data/xfmg`,
   `data/attachments` and `internal_data/attachments` before and after, and check no server error
-  was logged: validate compares tables, not files. Last done on 2026-10-11 with both at 2.3.5.
+  was logged: validate compares tables, not files. Last done on 2026-10-12 with both at 2.3.5,
+  when ratings and a featured resource joined the sample. For ratings, also read back each
+  resource's rating count, sum and review count against its ratings, and check no alert was
+  written. Stars on the rendered pages can only be seen on a forum without an add-on that
+  hides them.
 - **`seeder:validate` on a real forum, with the queue live**, after any change to a factory or to
   cleaning. It is the only check that runs with every add-on loaded and jobs really running, and
   it is what found the permission-cache leak.

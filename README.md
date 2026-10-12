@@ -77,12 +77,12 @@ that is only overridden by another you gave is reported the same way.
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), and those of `Thread` |
-| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
 | `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
-| `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3) |
+| `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3), `reviews` (0; ratings with a written review, for each resource), `ratings` (0; ratings with nothing written, for each resource), `featured` (0; how many of the resources are featured) |
 | `Media` | Media Gallery items: in a category, in an album, and where a guest cannot view them | `media` (6; in categories), `categories` (1), `category` (an existing media category's id), `albums` (1; each with two or three items), `hidden` (1; items in a private album), `authors` (3) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
@@ -119,6 +119,8 @@ UserFactory::new()
 | a column on the member | `state(['user_group_id' => 5])`, `['is_moderator' => true]`, `['register_date' => ...]` |
 | a preference, profile or privacy setting | `state(['Option.receive_admin_email' => true])`, `'Profile.location'`, `'Privacy.allow_view_profile'` |
 | awaiting approval, or unconfirmed | `->moderated()`, `->unconfirmed()`. A moderated member is in the approval queue, at the date they registered |
+| banned | `->banned()` permanently, `->banned($until)` until a timestamp in the future, `->banned($until, $moderator)` to say who by |
+| mail to them bounced | `->bouncing()` |
 | no email address at all | `->withoutEmail()` |
 | no password, as after registering through a connected account | `->withoutPassword()`, with `->withConnectedAccount()` for the whole of such a registration |
 | no authentication record at all, as a part-finished import can leave | `->withoutAuthentication()` |
@@ -127,6 +129,19 @@ UserFactory::new()
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
 
 `is_moderator` sets the flag only: it creates no moderator record and grants no permissions.
+
+**`banned()` writes the ban record, and XenForo sets the member's banned flag from it.** Setting
+`is_banned` with `state()` gives a banned member with no record of who banned them or until when,
+which no forum holds. Who banned them is one new moderator for every member the factory makes,
+unless one is given. Where the forum has a banned user group set, the member is in it.
+
+- **A permanent ban of a moderated member makes them valid.** XenForo does that so they leave the
+  approval queue. `->moderated()->banned()` is a valid, banned member; give an end date to keep
+  them moderated.
+- **A moderator or administrator cannot be banned**, and one cannot be `bouncing()`: XenForo
+  refuses the first and never does the second, so the factory refuses both.
+- **`bouncing()` is the member's state alone**, as XenForo's own bounce handling sets it. No
+  bounce is logged.
 
 **The ways in are rows, not working credentials.** A connected account has a made-up id at the
 provider and no tokens; a passkey's key is not a key and can sign nothing; nobody holds the
@@ -300,6 +315,8 @@ a forum that lacks the add-on says so and creates nothing.
 
 ```php
 ResourceFactory::new()->for($category)->recycle($authors)->count(6)->create();
+ResourceFactory::new()->featured()->create();
+ResourceRatingFactory::new()->for($resource)->recycle($members)->count(3)->create();
 
 MediaFactory::new()->recycle($authors)->count(6)->create();     // in a media category
 MediaFactory::new()->inAlbum($album)->create();
@@ -309,10 +326,18 @@ MediaFactory::new()->hidden()->create();                        // a guest canno
 | factory | creates | states |
 |---|---|---|
 | `ResourceCategoryFactory` | a resource category, with no discussion forum | |
-| `ResourceFactory` | a resource with its description and first version; visible, and with no file | `moderated()` |
+| `ResourceFactory` | a resource with its description and first version; visible, and with no file | `moderated()`, `featured()` |
+| `ResourceRatingFactory` | a member's rating of a resource, with a written review | `for($resource)`, `withoutReview()`, `rating($stars)`, `anonymous()` |
 | `MediaCategoryFactory` | a gallery category that holds media items | `forAlbums()` |
 | `AlbumFactory` | a member's album that anyone may view | `private()`, `membersOnly()`, `in($category)` |
 | `MediaFactory` | a media item: a real PNG, with the thumbnail the gallery makes of it | `inAlbum($album)`, `hidden()` |
+
+**A rating counts, and tells nobody.** It is of the resource's current version and by a member
+drawn from those given to `recycle()`, never the author and never the same member twice; if nobody
+is left, a new member is made. The resource's rating, its rating count and its review count all
+move, and a review is in the news feed. It is written through the entity, since the Resource
+Manager's rating service alerts the author. `featured()` writes XenForo's featured content record
+through its entity for the same kind of reason: the service writes the moderator log.
 
 **A media item is a real upload.** A 480 by 270 PNG goes through the gallery's own attachment
 handler, so the item has an attachment, a file and a thumbnail, and its full image is served. All

@@ -47,7 +47,9 @@ the member too.
 **Prefer the entity to a XenForo service where the service does something outward.** The warn
 service and the reaction repository both queue a webhook and can alert, so warnings and reactions
 are written through their entities. The API key manager service emails every super
-administrator, so keys are too.
+administrator, so keys are too. The Resource Manager's rating service alerts the resource's
+author and XenForo's featured content service writes the moderator log, so ratings and features
+are too.
 
 **Where the only outward effect is another add-on's hook on a XenForo service, write through the
 entity by default and offer the service as an opt-in** that says what it means before it runs.
