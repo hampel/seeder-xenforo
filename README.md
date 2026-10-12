@@ -15,8 +15,8 @@ media items - and removes them again. Polls and profile posts are not built yet.
 
 Two things to know while it is one:
 
-- **The classes your own seeders and factories build on may change before 1.0**, their namespace
-  included. See *Your own seeders and factories*.
+- **The classes your own seeders and factories build on may change before 1.0.** Their
+  namespace will not. See *Your own seeders and factories*.
 - **It has been run beside a few dozen add-ons, not beside yours.** See *Limits* for what another
   add-on can do that this one cannot stop.
 
@@ -497,8 +497,8 @@ line, and for a job the job manager's frame in the stack trace.
 
 **Any add-on can carry seeders for its own content.** Put a class in the add-on's `Seed` directory
 and run it as `Vendor/AddOn:Name`. Until 1.0, `AbstractSeeder`, `AbstractFactory` and
-`AbstractBulkFactory` may still change, and may move to another namespace; the changelog will say
-when they do.
+`AbstractBulkFactory` may still change; the changelog will say when they do. They stay in the
+`Hampel\Seeder` namespace.
 
 ```php
 namespace Vendor\AddOn\Seed;

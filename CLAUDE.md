@@ -27,7 +27,20 @@ what was verified against XenForo's source, and what was not. Update it when a d
 
 **Nothing in the framework half may call `Guard`, `Config`, or the record entity.** Whether that
 half becomes a Composer package other add-ons require is undecided; kept apart, extracting it is a
-move and a namespace rename. A factory that reads `config.php` would end that.
+move. A factory that reads `config.php` would end that.
+
+**A package would keep the `Hampel\Seeder` namespace, so extraction breaks nobody's seeders.**
+Checked on 2026-10-12 by registering a prefix through XenForo's class loader as an add-on's
+Composer autoload does: a package's prefix is searched before the add-on directory, and a class
+the package lacks is still found in the add-on. Two things follow for whoever does it:
+
+- **Move the classes, never copy them.** Where both hold a class the package's copy loads and
+  the add-on's is silently dead.
+- **Nothing may name a framework class before the add-on's autoload is registered** - `Setup`
+  during an install above all. The loader remembers a miss for the life of the process.
+
+The check was a simulation in one process on XenForo 2.3.12, not an extracted package installed
+from a zip.
 
 ## The guard is `config.php`, and only a literal `true` opens it
 

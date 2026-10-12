@@ -66,7 +66,8 @@ may reference the add-on half — no `\XF::config()` guard inside a factory, no 
 record entity.
 
 The reason is a decision deferred on 2026-10-07: whether the framework half becomes a Composer
-package that other add-ons `require-dev`. Kept apart, extraction is a move and a namespace rename.
+package that other add-ons `require-dev`. Kept apart, extraction is a move; the namespace can
+stay, as `CLAUDE.md` records (checked 2026-10-12).
 It is deferred rather than done because a package does not remove the need for the add-on
 (`cmd.php` discovers commands only inside add-on directories), and it puts a copy of the framework
 in every consuming add-on's `vendor/`, where the first autoloader registered wins. Decide after the
