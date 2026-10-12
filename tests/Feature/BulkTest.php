@@ -361,6 +361,7 @@ class BulkTest extends TestCase
 		$this->assertSame(1, $code);
 		$this->assertStringContainsString('There is no action Index on a controller', $tester->getErrorOutput());
 		$this->assertDatabaseCount('xf_hampel_seeder_record', 0, ['batch' => 'test-online-focus-bad'], 'refused before any member was made');
+		$this->assertNoExceptionsLogged();
 	}
 
 	public function test_bad_shapes_are_refused()

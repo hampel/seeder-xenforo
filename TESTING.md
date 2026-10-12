@@ -280,7 +280,13 @@ is taken out; and allows it once nothing is recorded;
 `FrameworkHalfTest` fails if anything in the framework half references the add-on half.
 
 `ErrorLogPrefixTest` fails if a call that writes to the server error log does not begin its
-message with `Seeder: `.
+message with `Seeder: `. That test reads the source; the tests of a seeder that throws and of a
+check that throws also assert the prefix on what was logged.
+
+**Every test in a transaction stands in for XenForo's member statistics repository**, as well as
+faking the data registry. Saving a new member empties the cached staff list, a row XenForo's own
+cron rewrites every ten minutes, and a test holding it loses that race with error 1020. One test
+asserts that creating a member leaves the table as it was.
 
 ## Needs a human
 

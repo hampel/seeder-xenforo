@@ -380,7 +380,7 @@ class SeedingTest extends TestCase
 		$this->assertStringContainsString('The seeder failed: RuntimeException: the seeder broke', $summary);
 		$this->assertStringContainsString('seeder:clean test-fail-run', $summary);
 		$this->assertDatabaseCount(self::RECORDS, 2, ['batch' => 'test-fail-run']);
-		$this->assertExceptionLogged(\RuntimeException::class);
+		$this->assertExceptionLogged(\RuntimeException::class, 'Seeder: seeder:run - ');
 
 		$cleaned = (new Cleaner())->clean('test-fail-run');
 		$this->assertSame(['XF:CaptchaQuestion' => 2], $cleaned['removed']);

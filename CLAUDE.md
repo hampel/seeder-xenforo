@@ -166,6 +166,12 @@ same rows every minute, and on MariaDB 11.8 the loser of that race gets `Record 
 last read` (error 1020). Before this, about one run in three failed on it. A test that needs the
 real registry row has to say so and take the race.
 
+**The same `setUp()` stands in for the member statistics repository**, for the same reason one
+table over. Saving a new member calls `emptyCache('staff_members')`, which writes a row of
+`xf_member_stat`, and XenForo's `memberStatsCache` cron rewrites that table every ten minutes.
+Found on 2026-10-12 as one failed run that crossed the ten-minute mark. Only `emptyCache()` is
+stood in for: a test that reaches any other method of that repository fails and says so.
+
 **Never empty or bulk-delete from the record table in a test**, even inside a transaction. On a
 forum where other people have batches, the day the transaction does not hold their content is
 stranded. Mock `RecordRepository` instead.

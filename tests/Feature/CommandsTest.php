@@ -165,7 +165,7 @@ class CommandsTest extends TestCase
 		$this->assertMatchesRegularExpression('/\[fail\] Faker +RuntimeException: the generator broke/', $output);
 		$this->assertMatchesRegularExpression('/\[ ok \] enableMail/', $output, 'the check after the failure still ran');
 		$this->assertStringContainsString('Validation failed', $output);
-		$this->assertExceptionLogged(\RuntimeException::class);
+		$this->assertExceptionLogged(\RuntimeException::class, 'Seeder: seeder:validate - Faker: ');
 	}
 
 	public function test_a_failure_outranks_a_warning()
