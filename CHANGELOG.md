@@ -23,6 +23,9 @@ First release.
   can be in the state XenForo gives a member whose mail bounced
 - members can be made without a password, as XenForo makes one who registers through a connected
   account, or with no authentication record at all
+- members can be administrators, with the administrator record XenForo keeps and whichever
+  administrator permissions are named
+- admin log entries, by seeded administrators, with the repeats a real log has
 - widgets, with a title, in any widget position; cleaning one also deletes the compiled file
   XenForo leaves behind
 - everything created is recorded in a batch: `seeder:list` shows the batches, `seeder:clean`

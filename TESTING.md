@@ -64,6 +64,13 @@ needs a person.
   table is skipped and not recorded.
 - **The server error log** — entries written through the `ErrorLog` entity as data. Other add-ons
   read this table and send what they find: see *Fragile points*.
+- **Administrators** — the member, then the `Admin` entity, which sets the member's flag and
+  writes the permission entries. Removed by XenForo's member clean-up. A seeded administrator can
+  sign in to the admin control panel.
+- **The admin log** — entries written through the `AdminLog` entity as data; XenForo itself
+  writes that table with a query. An entry for the control panel's front page has an empty path,
+  which the entity refuses, so it is saved with one and then updated. XenForo prunes the table by
+  age.
 - **API keys** — through the `ApiKey` entity, not XenForo's key manager service, which emails
   every super administrator. A run prints key values: they are live credentials on that forum.
 - **Warnings** — definitions through their entity and three phrases; warnings through the
@@ -289,6 +296,14 @@ has faults that recur, covers many days and cleans away; the seeder names member
 views; whoever runs it is told, before anything is created, which active add-ons will report on
 the entries.
 
+For administrators and the admin log: an administrator has the record behind the flag, no
+permissions unless named, and one the forum lacks is refused; cleaning leaves no record,
+permission entry or member; an entry has an administrator, a route path, masked input, a packed
+address and a date after its author registered; no entry is dated inside the quiet period; a log
+has repeats alike in administrator, address, path and input, and markup in what was posted; the
+empty path is written; entries are recorded under a name a later process can load; the seeder
+says it makes administrators and names the add-ons that will report.
+
 For API keys: a key acts as a member by default and is made after the member was; `for()` names
 a member even when others are recycled; super user, guest and inactive kinds; scopes are written
 as rows that go when the key is cleaned, and an unknown scope is refused; no mail is sent. On a
@@ -383,6 +398,9 @@ asserts that creating a member leaves the table as it was.
   2.3.5: an album in a new album category and one in a given category, a media item in the
   second, each page 200 to a guest once the run's jobs had drained, cleaned with no row or file
   left.
+- **A seeded administrator in the admin control panel.** The record, the flag and the permission
+  entries were read back; nobody has signed in as one, or looked at a seeded log on XenForo's
+  admin log page.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo

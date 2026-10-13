@@ -5,6 +5,7 @@ use Hampel\Seeder\Cli\RendersReport;
 use Hampel\Seeder\Config as SeederConfig;
 use Hampel\Seeder\Guard;
 use Hampel\Seeder\Record\RoundTrip;
+use Hampel\Seeder\Seed\AdminLogSeeder;
 use Hampel\Seeder\Seed\ErrorLogSeeder;
 use Hampel\Seeder\Repository\RecordRepository;
 use Symfony\Component\Console\Command\Command;
@@ -200,9 +201,13 @@ class Validate extends Command
 	protected function errorLog(): void
 	{
 		$hours = SeederConfig::errorLogQuietHours();
-		$this->checkOk('quiet period', "no seeded error is dated within {$hours} hours of now, so none looks new");
+		$this->checkOk('quiet period', "no seeded error or admin log entry is dated within {$hours} hours of now, so none looks new");
 
 		foreach (ErrorLogSeeder::activeReaders() AS $addOnId => $what)
+		{
+			$this->checkWarn($addOnId, "active - {$what}");
+		}
+		foreach (AdminLogSeeder::activeReaders() AS $addOnId => $what)
 		{
 			$this->checkWarn($addOnId, "active - {$what}");
 		}

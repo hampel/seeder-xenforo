@@ -20,6 +20,8 @@ use Hampel\Seeder\Factory\UserFactory;
  *                connected account
  *     no_auth    how many more with no authentication record at all, as a part-finished import
  *                can leave (0)
+ *     admins     how many more who are administrators, with an administrator record and no
+ *                administrator permissions (0). Each can sign in to the admin control panel
  */
 class UserSeeder extends AbstractSeeder
 {
@@ -66,6 +68,12 @@ class UserSeeder extends AbstractSeeder
 		if ($noAuth)
 		{
 			UserFactory::new()->withoutAuthentication()->count($noAuth)->create();
+		}
+
+		$admins = $this->count('admins', 0);
+		if ($admins)
+		{
+			UserFactory::new()->administrator()->count($admins)->create();
 		}
 
 		$banned = $this->count('banned', 0);

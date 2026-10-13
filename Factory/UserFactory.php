@@ -288,6 +288,22 @@ class UserFactory extends AbstractFactory
 	}
 
 	/**
+	 * An administrator: the member's flag and the administrator record behind it, so the forum
+	 * lists them among its administrators and the admin log can name them. Not a super
+	 * administrator, and with no administrator permissions unless some are named - by id, as
+	 * `'user'` or `'option'`.
+	 *
+	 * **A seeded administrator is a working login to the admin control panel**, with the run's
+	 * password. With no permissions they reach its front page and nothing behind it.
+	 *
+	 * @return static
+	 */
+	public function administrator(string ...$permissions)
+	{
+		return $this->extra('admin', $permissions);
+	}
+
+	/**
 	 * @param mixed $argument
 	 *
 	 * @return static
@@ -417,7 +433,8 @@ class UserFactory extends AbstractFactory
 		$extras = $attributes['extras'] ?? [];
 		unset($attributes['fields'], $attributes['extras']);
 
-		$staff = !empty($attributes['is_admin']) || !empty($attributes['is_moderator']);
+		$staff = !empty($attributes['is_admin']) || !empty($attributes['is_moderator'])
+			|| in_array('admin', array_column($extras, 0), true);
 		if (($attributes['user_state'] ?? null) === 'email_bounce' && ($staff || !empty($attributes['is_staff'])))
 		{
 			throw new \InvalidArgumentException('A moderator, administrator or staff member cannot be bouncing: XenForo never stops mail to one');
@@ -428,6 +445,10 @@ class UserFactory extends AbstractFactory
 			if ($kind === 'banned' && $staff)
 			{
 				throw new \InvalidArgumentException('A moderator or administrator cannot be banned: XenForo refuses it');
+			}
+			if ($kind === 'admin' && ($unknown = array_diff($argument, array_keys(\XF::em()->getFinder('XF:AdminPermission')->fetch()->toArray()))))
+			{
+				throw new \InvalidArgumentException("This forum has no administrator permission '" . implode("', '", $unknown) . "'");
 			}
 			if ($kind === 'connected' && !\XF::em()->find('XF:ConnectedAccountProvider', $argument))
 			{
@@ -615,6 +636,14 @@ class UserFactory extends AbstractFactory
 					'event_date' => max($when, $from->register_date),
 				]);
 				$alert->save();
+				break;
+
+			case 'admin':
+				$admin = $em->create('XF:Admin');
+				$admin->bulkSet(['user_id' => $user->user_id, 'permission_cache' => $argument, 'last_login' => $when]);
+				// the record saves the member, to set their administrator flag
+				static::silence($user);
+				$admin->save();
 				break;
 
 			case 'banned':

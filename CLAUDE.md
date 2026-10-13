@@ -93,6 +93,9 @@ that check is the last thing before the save so no state or override gets past i
 post new errors to chat as they appear; a seeded log must not look new. Do not add a way round
 it, and do not put the error log in `SampleSeeder` or `DefaultSeeder`.
 
+**The admin log keeps the same period and stays out of both seeders for the same reason.**
+`AdminLogFactory::store()` makes the same check, against `ErrorLogFactory::quiet()`.
+
 The factory lives in the framework half and cannot read `config.php`, so the period is handed to
 it: `SeedRunner` calls `ErrorLogFactory::quietFor()` with `Config::errorLogQuietHours()`.
 

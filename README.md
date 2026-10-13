@@ -9,11 +9,11 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 [support thread](https://xenforo.com/community/threads/seeder-test-data-generator.240676/)
 
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
-approval, unconfirmed, banned, bouncing - forums, threads with replies, tags, reactions, thread
-prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
+approval, unconfirmed, banned, bouncing, administrators - forums, threads with replies, tags,
+reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
-definitions, warnings, API keys, widgets, who is online and server error log entries - and, where the forum
-has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
+definitions, warnings, API keys, widgets, who is online, server error log entries and admin log
+entries - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
 XenForo Media Gallery media items with comments - and removes them again. Profile posts are not
 built yet.
 
@@ -48,7 +48,7 @@ Everything is set in `src/config.php`, under `$config['hampelSeeder']`.
 |---|---|---|
 | `enabled` | off | allow seeding on this forum — only a literal `true` counts |
 | `locale` | `en_AU` | the [Faker](https://fakerphp.org/) locale for generated names and text |
-| `errorLogQuietHours` | 2 | how long before now no seeded error log entry may be dated; never less than 2 |
+| `errorLogQuietHours` | 2 | how long before now no seeded error log or admin log entry may be dated; never less than 2 |
 
 ## Usage
 
@@ -87,14 +87,14 @@ that is only overridden by another you gave is reported the same way.
 
 `seeder:run` takes the name of a seeder, and runs `Default` without one.
 
-**Anything marked *since 1.0.0b2* is not in the release before that one.** A run given a
-parameter the installed version does not have makes everything else, names the parameter as
+**Anything marked *since 1.0.0b2* or *since 1.0.0b3* is not in the release before that one.** A
+run given a parameter the installed version does not have makes everything else, names the parameter as
 ignored and exits 1.
 
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
-| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
@@ -107,7 +107,8 @@ ignored and exits 1.
 | `Widget` *(since 1.0.0b2)* | widgets with a title, in one widget position: forum statistics, members online and new posts by turns | `widgets` (3), `position` (`forum_list_sidebar`; the widget position they are shown in), `html` (0; how many more are HTML widgets with a sentence of text; see *Widgets*) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
 | `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in three to name) |
-| `Sample` | a little of everything above, bar who is online, the error log and HTML widgets, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
+| `AdminLog` *(since 1.0.0b3)* | an admin log with history: a few administrators, the ordinary actions repeated and unusual ones once | `entries` (200), `admins` (3; administrators created for the entries to be by) |
+| `Sample` | a little of everything above, bar who is online, the error log, the admin log and HTML widgets, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -143,11 +144,19 @@ UserFactory::new()
 | no email address at all | `->withoutEmail()` |
 | no password, as after registering through a connected account | `->withoutPassword()`, with `->withConnectedAccount()` for the whole of such a registration |
 | no authentication record at all, as a part-finished import can leave | `->withoutAuthentication()` |
+| an administrator *(since 1.0.0b3)* | `->administrator()` with no administrator permissions, `->administrator('user', 'option')` with those |
 | another way into the account | `->withConnectedAccount('google')`, `->withTwoStep()`, `->withPasskey()`, `->withRememberKey()`, `->withConfirmationPending()` |
 | a member who has used the forum without posting | `->activeWithoutContent()`, or its parts: `->withLogin()`, `->withAlert()`, `->following()`, `->followedBy()` |
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
 
 `is_moderator` sets the flag only: it creates no moderator record and grants no permissions.
+`is_admin` as a column does the same; `administrator()` is the one that makes an administrator.
+
+**A seeded administrator is a working login to the admin control panel.** `administrator()` writes
+the administrator record XenForo keeps, so the member is listed among the forum's administrators
+and has the run's password like every other seeded member. They are not a super administrator, and
+with no permissions named they reach the control panel's front page and nothing behind it.
+Cleaning the batch removes the record with the member.
 
 **`banned()` writes the ban record, and XenForo sets the member's banned flag from it.** Setting
 `is_banned` with `state()` gives a banned member with no record of who banned them or until when,
@@ -563,6 +572,10 @@ drawn from a pool of made-up faults — in a handful of the forum's installed ad
 itself, in a template, in a file outside the forum — with a few of them accounting for most
 entries, as in a real log.
 
+**A fault in an add-on names a file that add-on does not have.** The add-on is a real one on the
+forum; the class, file and line are invented. Nobody reading a seeded log should go looking for
+them.
+
 | factory | builds | states |
 |---|---|---|
 | `ErrorLogFactory` | one entry | `web()`, `cli()`, `job()`, `unknownOrigin()`, `forUser($member)`, `inAddOn('Vendor/AddOn')`, `inCore()`, `php('E_DEPRECATED')`, `fatal()`, `inTemplate('public:thread_view')`, `missingClass('Vendor/AddOn')`, `missingAutoload('Vendor/AddOn')`, `outside()` |
@@ -586,6 +599,41 @@ Each fault comes mostly from where it would — a job's class from the job queue
 the command line, a template only ever from a page view — and occasionally from elsewhere.
 An origin is recorded the way XenForo records one: a page view's address and input, a command
 line, and for a job the job manager's frame in the stack trace.
+
+### The admin log
+
+*Since 1.0.0b3.*
+
+```bash
+php cmd.php seeder:run AdminLog -p entries=500 -p admins=4
+```
+
+**Entries are written as data. Nothing is submitted to the admin control panel** and no setting
+changes. Each entry is what XenForo records for a submission there: the administrator, the route
+path such as `options/update`, the posted input with the token and any password masked, and the
+address it came from.
+
+| factory | builds | states |
+|---|---|---|
+| `AdminLogFactory` | one entry, by a new administrator unless given some to `recycle()` | `by($admin)`, `action('options/update', [...])`, `from('203.0.113.9')` |
+
+**A log has repeats in it, on purpose.** A few actions account for about two entries in three and
+each administrator keeps one address, so the same administrator doing the same thing from the
+same place recurs, as it does on a real forum. Some posted values carry markup, for whatever
+displays the log to escape. Some entries have an empty path, which is how XenForo logs the
+control panel's front page.
+
+**The seeder creates real administrators** for the entries to be by, and says so before it creates
+anything. See *Members*. `AdminLogFactory::administrator()` gives a factory for one who registered
+before the quiet period, so that no entry has to come before its author.
+
+**No entry is dated within the quiet period**, the same one the server error log keeps and
+`errorLogQuietHours` sets. An add-on that reports on the admin log by another rule will still
+report on these; `seeder:run` names each one it finds active, and `seeder:validate` warns of them.
+
+**XenForo prunes this log by age.** Entries older than its `adminLogLength` setting, 60 days
+unless changed, go at its next daily clean-up whether or not the batch is cleaned.
+`seeder:clean` reports those as already removed.
 
 ### Your own seeders and factories
 
