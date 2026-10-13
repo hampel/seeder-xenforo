@@ -8,9 +8,12 @@
  * members with other ways into their accounts and members active without posting, members banned
  * and members whose mail bounced,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
- * warnings and API keys - and, where the forum has Resource Manager or Media Gallery, resources -
+ * warnings, API keys and widgets - and, where the forum has Resource Manager or Media Gallery, resources -
  * rated, reviewed, one of them featured and each with a discussion thread - and media items
  * with comments.
+ *
+ * An HTML widget is left out: it has a template of its own, and saving one empties the forum's
+ * cached CSS, which validating a forum should not do.
  *
  * It is what seeder:validate seeds and removes to prove cleaning leaves nothing behind, so
  * anything new the add-on learns to create belongs here too.
@@ -41,5 +44,6 @@ class SampleSeeder extends AbstractSeeder
 
 		$this->call(WarningSeeder::class, ['warnings' => 5, 'definitions' => 2, 'members' => 2]);
 		$this->call(ApiKeySeeder::class, ['user_keys' => 1, 'guest_keys' => 1, 'super_keys' => 0, 'inactive' => 1]);
+		$this->call(WidgetSeeder::class, ['widgets' => 2]);
 	}
 }

@@ -23,6 +23,8 @@ First release.
   can be in the state XenForo gives a member whose mail bounced
 - members can be made without a password, as XenForo makes one who registers through a connected
   account, or with no authentication record at all
+- widgets, with a title, in any widget position; cleaning one also deletes the compiled file
+  XenForo leaves behind
 - everything created is recorded in a batch: `seeder:list` shows the batches, `seeder:clean`
   removes one and `seeder:forget` keeps the content and discards the record
 - content is dated across a span of time and not all at the moment it was made, and a run given

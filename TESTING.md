@@ -17,6 +17,10 @@ needs a person.
   entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
   with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
   files in `internal_data`. Removal deletes the entity, then any attachment files left unused.
+- **Widgets** — through the `XF:Widget` entity, with the title phrase saved after it and, for an
+  HTML widget, a master template saved before it, as XenForo's widget form does. Removal deletes
+  the entity, which deletes the phrase and template, then the compiled file in
+  `internal_data/code_cache/widgets` that XenForo leaves. An HTML widget is not in the sample.
 - **Polls** — through XenForo's poll creator, saved with the thread as the thread form saves
   one. Votes are rows in `xf_poll_vote` followed by XenForo's own rebuild of the poll's totals,
   since its voting queues a webhook. A discussion forum's *Allowed thread types* setting is
@@ -263,6 +267,14 @@ and cached results agree with the rows; a forum takes the thread types it is tol
 one takes none; a poll is refused in a forum that does not take them and with fewer than two
 choices; cleaning leaves no poll, choice or vote; the seeders make the sticky threads and polls
 asked for, and give polls only to forums that take them.
+
+For widgets: a widget has its title phrase, its position and a compiled file, and no template;
+an HTML widget has a template of its own holding its markup; a widget can be of another
+definition, in several positions or none; a definition or position the forum does not have is
+refused; cleaning leaves no row, phrase, template or compiled file; the seeder puts its widgets
+in the position named. These tests stand in for one method of XenForo's style repository:
+compiling a template empties the cached CSS with a `TRUNCATE`, which would commit the test's
+transaction.
 
 For bulk rows: a binary key survives being recorded and fits the column; members, guests and robots
 are written in the numbers, networks and ranges asked for, with known robot names and view dates

@@ -12,7 +12,7 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 approval, unconfirmed, banned, bouncing - forums, threads with replies, tags, reactions, thread
 prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
-definitions, warnings, API keys, who is online and server error log entries - and, where the forum
+definitions, warnings, API keys, widgets, who is online and server error log entries - and, where the forum
 has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
 XenForo Media Gallery media items with comments - and removes them again. Profile posts are not
 built yet.
@@ -104,9 +104,10 @@ ignored and exits 1.
 | `Media` | Media Gallery items: in a category, in an album, and where a guest cannot view them | `media` (6; in categories), `categories` (1), `category` (an existing media category's id), `albums` (1; each with two or three items), `hidden` (1; items in a private album), `authors` (3), `comments` *(since 1.0.0b2)* (0; how many comments each item in a category gets) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
 | `ApiKey` | API keys of each kind, with a new member for each member key | `user_keys` (2), `guest_keys` (1), `super_keys` (0), `inactive` (1; one more member key, switched off and limited to two read scopes) |
+| `Widget` *(since 1.0.0b2)* | widgets with a title, in one widget position: forum statistics, members online and new posts by turns | `widgets` (3), `position` (`forum_list_sidebar`; the widget position they are shown in), `html` (0; how many more are HTML widgets with a sentence of text; see *Widgets*) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
 | `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in three to name) |
-| `Sample` | a little of everything above, bar who is online and the error log, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
+| `Sample` | a little of everything above, bar who is online, the error log and HTML widgets, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -481,6 +482,33 @@ forum it was made on, so the seeder makes none unless asked.
 XenForo emails every super administrator when a key is created through the control panel. A
 seeded key is written without that.
 
+### Widgets
+
+*Since 1.0.0b2.*
+
+```php
+$widget = WidgetFactory::new()->at('thread_view_sidebar')->create(['title' => 'Statistics']);
+
+WidgetFactory::new()->of('new_posts', ['limit' => 3])->create();
+WidgetFactory::new()->html('<b>Seeded</b> notice')->create();
+```
+
+| factory | builds | states |
+|---|---|---|
+| `WidgetFactory` | the forum statistics widget, with a title, in the sidebar of the forum list | `of($definitionId, $options)`, `at(...$positions)`, `html($markup)` |
+
+**A seeded widget is on the forum's own pages**, for every visitor, until its batch is cleaned.
+A definition or a position the forum does not have is refused. `at()` with no position makes a
+widget that is shown nowhere.
+
+**An HTML widget costs more than the others.** It has a template of its own, and saving or
+deleting a template does what editing one in the admin control panel does: every style is marked
+as changed and the cached CSS is emptied. So the default is a widget without one, and
+`seeder:validate` seeds none.
+
+XenForo compiles each widget to a file in its code cache and does not delete that file with the
+widget. Cleaning a seeded widget deletes it.
+
 ### Who is online
 
 ```bash
@@ -650,18 +678,67 @@ XenForo's clock moved to the date `clockFor()` returns. Override `store()` where
 than `$entity->save()`, `remove()` where deleting leaves something behind, and `describe()` to add
 fields to the JSON a run prints.
 
+**`store()` need not call `save()` itself.** It can hand the entity to a service - XenForo's, or
+the add-on's own uploader - so that what is seeded is validated and stored as the real thing is.
+The entity only has to be saved by the time `store()` returns.
+
+**An attribute that is not a column is taken out in `newEntity()` and kept until `store()`** - a
+title that goes into a phrase, or the file an upload is made from. Keep it in a static `WeakMap`
+keyed by the entity, as this add-on's `PrefixFactory` does:
+
+```php
+/** @var \WeakMap */
+private static $pending;
+
+protected function newEntity(array $attributes): Entity
+{
+	$title = (string) $attributes['title'];
+	unset($attributes['title']);
+
+	$entity = parent::newEntity($attributes);
+
+	self::$pending = self::$pending ?? new \WeakMap();
+	self::$pending[$entity] = ['title' => $title];
+
+	return $entity;
+}
+
+protected function store(Entity $entity): void
+{
+	$entity->save();
+
+	$phrase = $entity->getMasterPhrase();
+	$phrase->phrase_text = self::$pending[$entity]['title'];
+	$phrase->save();
+}
+```
+
+An array on the factory keyed by `spl_object_id()` is not a substitute: PHP gives a collected
+entity's id to the next one, and each configuring method returns a copy of the factory with the
+array in it.
+
+**A `remove()` that leaves files behind is not caught by `seeder:validate`**, which counts rows.
+XenForo puts an `index.html` in each directory it makes under `data` and `internal_data`, and
+leaves both when the last file goes; and it never deletes a widget's compiled file. A factory
+whose entities have files deletes them in `remove()`, and its author counts the files before
+seeding and after cleaning.
+
 ## Commands
 
 ```bash
 php cmd.php seeder:run [seeder]    # create content
 php cmd.php seeder:config       # whether seeding is allowed, and the settings in use
-php cmd.php seeder:validate     # whether this forum can be seeded, and whether that is safe
+php cmd.php seeder:validate     # whether this forum can be seeded - by seeding it and cleaning up
 php cmd.php seeder:list         # the batches of seeded content on this forum
 php cmd.php seeder:clean [batch]   # remove one batch, or every batch
 php cmd.php seeder:forget [batch]  # keep the content, discard the record of it
 ```
 
 `seeder:list` and `seeder:clean` take `--json`.
+
+**`seeder:validate` is not a read-only check.** Where seeding is switched on it creates content
+on the forum and removes it again; see *The round trip*. `seeder:validate --unattended` and
+`seeder:config` write nothing.
 
 ### Removing seeded content
 
@@ -695,6 +772,8 @@ a large one takes longer.
 | `[fail] left behind` | one of XenForo's own tables did not return to its count |
 | `[warn] other add-on` | another add-on's table differs — it may log what ran, or hold something of ours |
 | `[warn] server error log` | entries were written while it ran |
+
+**It compares rows, not files.** A file left in `data` or `internal_data` does not show here.
 
 `--unattended` skips it, and it never runs with seeding switched off.
 
