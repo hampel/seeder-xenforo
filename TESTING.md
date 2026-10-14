@@ -472,15 +472,19 @@ asserts that creating a member leaves the table as it was.
   given `Hampel/HideAdverts`' permission and that add-on's own check read it, with every add-on
   loaded; nobody has signed in as one and looked at a page.
 - **A seeded moderator log on XenForo's moderator log page.** Each entry was read back through
-  XenForo's entity and its wording rendered; nobody has looked at the page, or at a thread's
-  moderator actions, in a browser.
-- **A seeded member's history in the admin control panel.** The change log, username changes,
-  the pending request in the approval queue and both kinds of rejection were read back on the
-  development forum; nobody has looked at a member's change log or the approval queue in a
-  browser, or approved or rejected the seeded request there.
-- **A seeded IP log in the admin control panel.** The rows were read back on the development
-  forum; nobody has looked at a member's IP list, an address's member list or a post's IP in the
-  control panel, or at another add-on that reads the IP log.
+  XenForo's entity and its wording rendered. On 2026-10-15, in a sandbox on XenForo 2.3.13 from
+  the 1.0.0b4 zip, the log's list (paged) and two single entries were fetched over HTTP as a super
+  administrator: 200, rows present, no template or PHP error. Nobody has looked at them in a
+  browser, or at a thread's moderator actions.
+- **A seeded member's history in the admin control panel.** Read back on the development forum,
+  and on 2026-10-15 in the same sandbox a member's change log tab and the username change log
+  were fetched over HTTP: 200, rows present, no error. Nobody has looked at them or at the
+  approval queue in a browser, or approved or rejected the seeded request there.
+- **A seeded IP log in the admin control panel.** Read back on the development forum, and on
+  2026-10-15 in the same sandbox a member's IP list (on one address, and on three) and the member
+  list for an address two members share were fetched over HTTP: 200, rows present, no error. An
+  add-on that reads the IP log showed every seeded row. Nobody has looked at those pages in a
+  browser, or at a post's IP.
 - **`crawlerUserAgent()` with an add-on that extends the robot list.** Its agents were checked
   against XenForo's own list only; which robot each is on a forum with a longer list was not.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
