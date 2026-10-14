@@ -72,6 +72,11 @@ needs a person.
   being saved, so XenForo builds their permission combination with it. Deleting a group is
   XenForo's own: its entries go, the style cache is marked changed and the CSS cache emptied, and
   a job removes every permission combination no member has. Not in the sample, for the CSS cache.
+- **The moderator log** — rows inserted one at a time with `insert()`, never the entity or
+  XenForo's logger, each id recorded as the insert gave it, and removed by id. Two add-ons on a
+  forum can react to a moderator action as it is taken, by extending the logger or on the entity's
+  save; neither sees a row. The bulk writer refuses a table another add-on has given a column with
+  no default.
 - **A member's history** — the change log is XenForo's own behaviour, written as each change is
   saved through the `User`, `UserProfile`, `UserOption` and `UserPrivacy` entities with the clock
   moved and the editor as the visitor. Username changes are `UsernameChange` entities with the new
@@ -328,6 +333,15 @@ entries, and after XenForo's job every permission table is back; the `User` seed
 members it is asked for and refuses `permitted` without `permissions`. The tests found that only
 deleting a group marks the styles changed, not creating one.
 
+For the moderator log: every entry's action is one XenForo has wording for, with each
+parameter that wording names; dated inside the content's life, after its moderator joined and
+outside the quiet period; the content's author, title and discussion as XenForo's handlers record
+them; from the documentation ranges; every row recorded; threads, posts and members all covered;
+a thread's history agrees with whether it is locked, stuck and visible now; no moderator log
+entity is saved, checked by saving through the entity, which fails it; cleaning removes the
+batch's rows and not a real moderator's written meanwhile; a table with a column no row could fill
+is refused; the seeder makes its moderators, members and content.
+
 For a member's history: changes by the member and by an administrator, each inside the member's
 span, each field's old value the one before it left, the member ending with the last values, and
 the dates spread rather than all at the moment of the run; a history of names from made-up names
@@ -456,6 +470,9 @@ asserts that creating a member leaves the table as it was.
 - **Permissions from another add-on, seen on a page.** On the development forum members were
   given `Hampel/HideAdverts`' permission and that add-on's own check read it, with every add-on
   loaded; nobody has signed in as one and looked at a page.
+- **A seeded moderator log on XenForo's moderator log page.** Each entry was read back through
+  XenForo's entity and its wording rendered; nobody has looked at the page, or at a thread's
+  moderator actions, in a browser.
 - **A seeded member's history in the admin control panel.** The change log, username changes,
   the pending request in the approval queue and both kinds of rejection were read back on the
   development forum; nobody has looked at a member's change log or the approval queue in a

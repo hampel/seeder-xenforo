@@ -201,7 +201,7 @@ class Validate extends Command
 	protected function errorLog(): void
 	{
 		$hours = SeederConfig::errorLogQuietHours();
-		$this->checkOk('quiet period', "no seeded error or admin log entry is dated within {$hours} hours of now, so none looks new");
+		$this->checkOk('quiet period', "no seeded error, admin or moderator log entry is dated within {$hours} hours of now, so none looks new");
 
 		foreach (ErrorLogSeeder::activeReaders() AS $addOnId => $what)
 		{

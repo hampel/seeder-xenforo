@@ -98,6 +98,15 @@ it, and do not put the error log in `SampleSeeder` or `DefaultSeeder`.
 **The admin log keeps the same period and stays out of both seeders for the same reason.**
 `AdminLogFactory::store()` makes the same check, against `ErrorLogFactory::quiet()`.
 
+**So does the moderator log, and it is written as rows, never saved as entities** - the only log
+Seeder writes that way. Other add-ons act on a moderator action the moment it is logged: one extends
+XenForo's logger, another listens for each new moderator log entity save, and both send it out
+of the forum whatever its date. `ModeratorLogFactory` inserts each row alone and records the id
+it was given. Decided by Simon on 2026-10-15, over not writing this log at all and over saving
+entities with a warning. Do not move it to the entity or to XenForo's logger, and do not put it in
+`SampleSeeder` or `DefaultSeeder`. `silence()` still switches XenForo's own moderator logging off
+for everything else Seeder saves.
+
 The factory lives in the framework half and cannot read `config.php`, so the period is handed to
 it: `SeedRunner` calls `ErrorLogFactory::quietFor()` with `Config::errorLogQuietHours()`.
 
@@ -147,6 +156,9 @@ it kill a test run; the pin keeps a `composer update` from moving this add-on in
 |---|---|
 | are content: saving one updates counters, an index, another add-on | `AbstractFactory`, one entity at a time |
 | stand alone, and there may be tens of thousands | `AbstractBulkFactory`, multi-row inserts |
+
+**The moderator log is the other case**, for a different reason: an entity save there is what
+sends it out of the forum. See *Seeded error log entries are never recent*.
 
 **Do not reach for the bulk path because something is slow.** It skips everything an entity save
 does, so content written through it leaves the forum inconsistent. Who is online is the model

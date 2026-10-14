@@ -17,6 +17,9 @@ abstract class AbstractBulkFactory
 {
 	protected const CHUNK = 1000;
 
+	/** @var array [table => true] tables already checked for columns this would leave out */
+	private static $checked = [];
+
 	/** @var string the short name of the entity whose table this writes, such as XF:SessionActivity */
 	protected $entity;
 
@@ -65,7 +68,8 @@ abstract class AbstractBulkFactory
 	 * Delete rows this factory wrote. seeder:clean calls this with the keys it recorded.
 	 *
 	 * @param string $entity the entity's short name
-	 * @param array $keys one [column => value] primary key per row
+	 * @param array $keys one [column => value] primary key per row, or the value alone where the
+	 *                    key is one column
 	 *
 	 * @return int how many were still there to delete
 	 */
@@ -77,9 +81,20 @@ abstract class AbstractBulkFactory
 		}
 
 		$structure = \XF::em()->getEntityStructure($entity);
+		$columns = (array) $structure->primaryKey;
+
+		// a key of one column is recorded, and so comes back, as its value alone
+		foreach ($keys AS &$key)
+		{
+			if (!is_array($key))
+			{
+				$key = [reset($columns) => $key];
+			}
+		}
+		unset($key);
 
 		return (int) \XF::db()->query(
-			"DELETE FROM `{$structure->table}` WHERE " . self::whereKeys((array) $structure->primaryKey, $keys)
+			"DELETE FROM `{$structure->table}` WHERE " . self::whereKeys($columns, $keys)
 		)->rowsAffected();
 	}
 
@@ -121,10 +136,38 @@ abstract class AbstractBulkFactory
 			return 0;
 		}
 
+		self::assertWritable($structure->table, array_keys(reset($byKey)[1]));
 		$db->insertBulk($structure->table, array_column($byKey, 1), false, false, 'IGNORE');
 		$this->context()->recorder->recordRows($this->entity, array_column($byKey, 0), static::class);
 
 		return count($byKey);
+	}
+
+	/**
+	 * Refuse a table another add-on has given a column these rows would leave out and the
+	 * database cannot fill: the insert would fail on it anyway, and the add-on that added it, not
+	 * this one, would look broken.
+	 *
+	 * @param string[] $columns the columns each row names
+	 */
+	protected static function assertWritable(string $table, array $columns): void
+	{
+		if (isset(self::$checked[$table]))
+		{
+			return;
+		}
+
+		foreach (\XF::db()->fetchAll("SHOW COLUMNS FROM `{$table}`") AS $column)
+		{
+			if ($column['Null'] === 'NO' && $column['Default'] === null
+				&& strpos($column['Extra'], 'auto_increment') === false && !in_array($column['Field'], $columns, true))
+			{
+				throw new \RuntimeException("Seeder will not write to {$table}: another add-on has given it the column "
+					. "'{$column['Field']}', which has no default, so every row Seeder wrote would be refused");
+			}
+		}
+
+		self::$checked[$table] = true;
 	}
 
 	/**

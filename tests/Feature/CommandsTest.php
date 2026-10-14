@@ -205,7 +205,7 @@ class CommandsTest extends TestCase
 
 		[$code, $quiet] = $this->runCommand($this->validate(), ['--strict' => true]);
 		$this->assertSame(0, $code);
-		$this->assertMatchesRegularExpression('/\[ ok \] quiet period +no seeded error or admin log entry is dated within 6 hours of now/', $quiet);
+		$this->assertMatchesRegularExpression('/\[ ok \] quiet period +no seeded error, admin or moderator log entry is dated within 6 hours of now/', $quiet);
 
 		$this->withActiveAddOns(['Hampel/LogDigest', 'Hampel/EventLogging']);
 		[$code, $output] = $this->runCommand($this->validate(), ['--strict' => true]);

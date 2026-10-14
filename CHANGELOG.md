@@ -31,6 +31,8 @@ First release.
 - members can have a history: changes to their account in XenForo's change log, by themselves and
   by an administrator; earlier names, with a later request awaiting approval or rejected; and a
   registration rejected by the spam check or by a moderator
+- moderator log entries about members' threads, replies and accounts, in XenForo's own words,
+  written so that nothing that reacts to a moderator action sees them
 - members can have an IP log - registering, logins, logins to the admin control panel and changes
   to the account - and threads and replies can log the address they were posted from, all from
   addresses in the ranges set aside for documentation that some members share

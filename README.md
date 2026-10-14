@@ -14,7 +14,7 @@ history of changes and of names - forums, threads with replies, tags,
 reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, widgets, who is online, server error log entries, admin log
-entries and IP logs - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
+entries, moderator log entries and IP logs - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
 XenForo Media Gallery media items with comments - and removes them again. Profile posts are not
 built yet.
 
@@ -108,6 +108,7 @@ ignored and exits 1.
 | `Widget` *(since 1.0.0b2)* | widgets with a title, in one widget position: forum statistics, members online and new posts by turns | `widgets` (3), `position` (`forum_list_sidebar`; the widget position they are shown in), `html` (0; how many more are HTML widgets with a sentence of text; see *Widgets*) |
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
 | `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in three to name) |
+| `ModeratorLog` *(since 1.0.0b4)* | a moderator log with history: a few moderators acting on members' threads, replies and accounts, and the members and threads they act on | `entries` (60, about), `moderators` (2), `members` (4), `threads` (6), `replies` (3, the most per thread) |
 | `AdminLog` *(since 1.0.0b3)* | an admin log with history: a few administrators, the ordinary actions repeated and unusual ones once | `entries` (200), `admins` (3; administrators created for the entries to be by) |
 | `Sample` | a little of everything above, bar who is online, the error log, the admin log, HTML widgets and members holding permissions, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
@@ -679,6 +680,41 @@ report on these; `seeder:run` names each one it finds active, and `seeder:valida
 **XenForo prunes this log by age.** Entries older than its `adminLogLength` setting, 60 days
 unless changed, go at its next daily clean-up whether or not the batch is cleaned.
 `seeder:clean` reports those as already removed.
+
+### The moderator log
+
+*Since 1.0.0b4.*
+
+```bash
+php cmd.php seeder:run ModeratorLog -p entries=200 -p moderators=3
+```
+
+**Entries are written as rows. No moderator did anything**: no thread is locked or moved, and no
+post is removed. Each entry is what XenForo records when one is - its own action names, such as
+`delete_soft` or `move`, with the parameters its wording uses, and the content's title, author and
+address as XenForo's handlers record them - about the seeder's own members, threads and replies.
+
+| factory | builds | states |
+|---|---|---|
+| `ModeratorLogFactory` | entries about threads, posts and members, by a new moderator unless given some | `for($thread, $post, $member, ...)`, `by($moderator, ...)`, `count(n)` |
+
+**Nothing that reacts to a moderator action sees these.** Other add-ons act on a moderator action
+as it is taken - by extending XenForo's logger, or on each entry as it is saved - and send it to a
+chat channel or a log. A row put straight into the table goes past both, and `seeder:run` names
+each such add-on it finds active. An add-on that reads the table for new rows some other way
+would still find them. Each row is inserted alone, so the id it was given and no other is
+recorded, and cleaning never removes a real moderator's entry.
+
+**The log is a history that agrees with the content as it is now.** An action that changes a
+state is undone later unless the content is in that state now: an open thread was locked and
+unlocked, a locked one was locked. A member was approved from the queue, rejected by the
+moderator their rejection names, or had a change of name approved by the moderator who approved
+it. No entry is dated within the quiet period the error log keeps, before its content or before
+its moderator joined. `ModeratorLogFactory::moderator()` gives a factory for a moderator who
+registered before the quiet period.
+
+**XenForo prunes this log by age only when told to**, with its `moderatorLogLength` setting; 0,
+the default, keeps everything.
 
 ### Your own seeders and factories
 
