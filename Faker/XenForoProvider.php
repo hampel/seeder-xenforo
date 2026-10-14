@@ -8,6 +8,39 @@ use Faker\Provider\Base;
 class XenForoProvider extends Base
 {
 	/**
+	 * Real crawlers' user agents, commonest first. A forum's robot list decides which of them it
+	 * recognises.
+	 */
+	private const CRAWLERS = [
+		'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+		'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.116 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+		'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+		'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)',
+		'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)',
+		'Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)',
+		'Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)',
+		'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36',
+		'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+		'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+		'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)',
+		'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)',
+		'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+		'Mozilla/5.0 (Linux; Android 7.0;) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; PetalBot;+https://webmaster.petalsearch.com/site/petalbot)',
+		'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+		'Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)',
+		'Mozilla/5.0 (compatible; DotBot/1.2; +https://opensiteexplorer.org/dotbot; help@moz.com)',
+		'DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)',
+		'Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
+		'CCBot/2.0 (https://commoncrawl.org/faq/)',
+	];
+
+	/** @var array|null the robot list robotFor() last compiled */
+	private $robotList;
+
+	/** @var string */
+	private $robotPattern = '';
+
+	/**
 	 * A member name of the kinds a forum actually has - not Faker's userName(), which is always
 	 * `first.last`. Letters, digits, spaces, dots, hyphens and underscores only.
 	 *
@@ -98,6 +131,76 @@ class XenForoProvider extends Base
 		}
 
 		return implode("\n\n", $blocks);
+	}
+
+	/**
+	 * The user agent of a real crawler that this forum recognises as a robot - commonest first,
+	 * as a forum sees them. Only agents the forum's robot list matches are drawn, and that list is
+	 * one other add-ons can extend, so which robot an agent is depends on the forum.
+	 *
+	 * @param string|null $robot only an agent this forum takes for this robot, by its key: `google`,
+	 *                           `bing` on XenForo's own list
+	 */
+	public function crawlerUserAgent(?string $robot = null): string
+	{
+		$agents = [];
+		foreach (self::CRAWLERS AS $agent)
+		{
+			$key = $this->robotFor($agent);
+			if ($key !== '' && ($robot === null || $key === $robot))
+			{
+				$agents[] = $agent;
+			}
+		}
+
+		if (!$agents)
+		{
+			throw new \InvalidArgumentException($robot === null
+				? 'This forum takes none of the crawlers Seeder knows for a robot'
+				: "Seeder knows no crawler this forum takes for the robot '{$robot}'");
+		}
+
+		// the first few far more often than the rest
+		return $agents[(int) floor(count($agents) * (mt_rand() / (mt_getrandmax() + 1)) ** 2.5)];
+	}
+
+	/**
+	 * A browser's user agent that this forum does not take for a robot. Faker's own are browsers,
+	 * but a forum's robot list can be extended to match almost anything, so one it would match is
+	 * drawn again.
+	 */
+	public function browserUserAgent(): string
+	{
+		for ($tries = 0; $tries < 100; $tries++)
+		{
+			$agent = $this->generator->userAgent();
+			if ($this->robotFor($agent) === '')
+			{
+				return $agent;
+			}
+		}
+
+		throw new \RuntimeException("This forum's robot list matches every browser user agent Faker drew");
+	}
+
+	/**
+	 * The key of the robot this forum takes a user agent for, or an empty string - matched as
+	 * XenForo matches it, against the list as installed add-ons have extended it. Nothing is
+	 * written, which asking XenForo itself may do where an add-on extends the check.
+	 */
+	public function robotFor(string $userAgent): string
+	{
+		$list = \XF::app()->data('XF:Robot')->getRobotUserAgents();
+		if ($this->robotList !== $list)
+		{
+			$this->robotList = $list;
+			$this->robotPattern = '#(' . implode('|', array_map(function ($fragment)
+			{
+				return preg_quote($fragment, '#');
+			}, array_keys($list))) . ')#i';
+		}
+
+		return $list && preg_match($this->robotPattern, strtolower($userAgent), $match) ? $list[$match[1]] : '';
 	}
 
 	private function prose(int $length): string

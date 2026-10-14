@@ -1,6 +1,7 @@
 <?php namespace Hampel\Seeder\Seed;
 
 use Hampel\Seeder\Factory\UserFactory;
+use Hampel\Seeder\Factory\UserGroupFactory;
 
 /**
  * Members, registered across the run's window.
@@ -22,6 +23,11 @@ use Hampel\Seeder\Factory\UserFactory;
  *                can leave (0)
  *     admins     how many more who are administrators, with an administrator record and no
  *                administrator permissions (0). Each can sign in to the admin control panel
+ *     permitted  how many more who hold the permissions in `permissions`, through a user group
+ *                made to grant them (0)
+ *     permissions  what those members hold, as `general.bypassFloodCheck` or, where the value is
+ *                not allow, `conversation.maxRecipients:50`; several separated by commas. Needed
+ *                when `permitted` is set
  */
 class UserSeeder extends AbstractSeeder
 {
@@ -74,6 +80,17 @@ class UserSeeder extends AbstractSeeder
 		if ($admins)
 		{
 			UserFactory::new()->administrator()->count($admins)->create();
+		}
+
+		$permitted = $this->count('permitted', 0);
+		if ($permitted)
+		{
+			$permissions = UserGroupFactory::parsePermissions((string) $this->param('permissions', ''));
+			if (!$permissions)
+			{
+				throw new \InvalidArgumentException("The 'permitted' parameter needs 'permissions': which permissions they hold");
+			}
+			UserFactory::new()->withPermissions($permissions)->count($permitted)->create();
 		}
 
 		$banned = $this->count('banned', 0);

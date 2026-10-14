@@ -9,7 +9,7 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 [support thread](https://xenforo.com/community/threads/seeder-test-data-generator.240676/)
 
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
-approval, unconfirmed, banned, bouncing, administrators - forums, threads with replies, tags,
+approval, unconfirmed, banned, bouncing, administrators, holding permissions - forums, threads with replies, tags,
 reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, widgets, who is online, server error log entries and admin log
@@ -94,7 +94,7 @@ ignored and exits 1.
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
-| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
@@ -108,7 +108,7 @@ ignored and exits 1.
 | `Online` | who is online: members, guests and robots | `members` (10), `guests` (100), `robots` (200), `networks` (20; how many networks each kind comes from, 1 to 128), `top` (0; the percentage in the largest network), `robot_kinds` (40; how many different robots), `actions` (11; how many different controller and action pairs, up to 45), `robot_action` (none; one action most robots are on, as `Search::Results`), `robot_focus` (90; the percentage of robots on it), `ipv6` (5; percent), `stale` (10; percent seen too long ago to count as online) |
 | `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in three to name) |
 | `AdminLog` *(since 1.0.0b3)* | an admin log with history: a few administrators, the ordinary actions repeated and unusual ones once | `entries` (200), `admins` (3; administrators created for the entries to be by) |
-| `Sample` | a little of everything above, bar who is online, the error log, the admin log and HTML widgets, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
+| `Sample` | a little of everything above, bar who is online, the error log, the admin log, HTML widgets and members holding permissions, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -145,6 +145,7 @@ UserFactory::new()
 | no password, as after registering through a connected account | `->withoutPassword()`, with `->withConnectedAccount()` for the whole of such a registration |
 | no authentication record at all, as a part-finished import can leave | `->withoutAuthentication()` |
 | an administrator *(since 1.0.0b3)* | `->administrator()` with no administrator permissions, `->administrator('user', 'option')` with those |
+| a permission *(since 1.0.0b3)* | `->withPermissions(['general' => ['bypassFloodCheck' => 'allow']])`, `'deny'`, or a number for a limit such as `['conversation' => ['maxRecipients' => 50]]` |
 | another way into the account | `->withConnectedAccount('google')`, `->withTwoStep()`, `->withPasskey()`, `->withRememberKey()`, `->withConfirmationPending()` |
 | a member who has used the forum without posting | `->activeWithoutContent()`, or its parts: `->withLogin()`, `->withAlert()`, `->following()`, `->followedBy()` |
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
@@ -157,6 +158,17 @@ the administrator record XenForo keeps, so the member is listed among the forum'
 and has the run's password like every other seeded member. They are not a super administrator, and
 with no permissions named they reach the control panel's front page and nothing behind it.
 Cleaning the batch removes the record with the member.
+
+**A permission is held through a user group made to grant it.** `withPermissions()` puts the member
+in an extra group, so they stay in the registered group, and every member of a run given the same
+permissions shares one group. `UserGroupFactory` makes such a group on its own:
+`UserGroupFactory::new()->granting([...])->create()`. A permission the forum does not have is
+refused. To use a group the forum already has, give its id in `secondary_group_ids`.
+
+- **Cleaning a group marks every style as changed and empties the forum's cached CSS.** XenForo
+  does that whenever a user group is deleted. Groups are therefore left out of the `Sample` seeder.
+- **XenForo then removes every permission combination no member has any more**, the forum's own
+  as well as the run's. That is its own clean-up and runs whenever a group is deleted.
 
 **`banned()` writes the ban record, and XenForo sets the member's banned flag from it.** Setting
 `is_banned` with `state()` gives a banned member with no record of who banned them or until when,
@@ -713,6 +725,21 @@ class ThingFactory extends AbstractFactory
 | `make()` | build without saving |
 | `create()` | build, save and record |
 | `raw()` | the attributes only |
+
+**Faker knows a few things about forums.** Besides Faker's own, `$this->context()->faker` has
+`forumUsername()`, `threadTitle()` and `bbCodeMessage()`, and *since 1.0.0b3*:
+
+| method | gives |
+|---|---|
+| `crawlerUserAgent()` | a real crawler's user agent that this forum takes for a robot, the commonest most often |
+| `crawlerUserAgent('bing')` | one this forum takes for that robot, by its key |
+| `browserUserAgent()` | a browser's user agent that this forum does not take for a robot |
+| `robotFor($userAgent)` | the key of the robot the forum takes an agent for, or `''` |
+
+Which agents are robots is the forum's robot list, which other add-ons can extend, so the same
+agent can be a robot on one forum and not on another. `robotFor()` matches the list as XenForo
+does without asking XenForo, so an add-on that extends that check to store the agents it sees
+does not store these.
 
 **Writing rows in bulk.** For a table whose rows stand alone, extend `AbstractBulkFactory` and
 yield the rows from `rows()`, each as the database stores it. It is the wrong tool for content: no

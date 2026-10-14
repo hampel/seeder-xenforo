@@ -73,6 +73,8 @@ User upgrades are the model: `withHooks()` and `hooks=1`.
 
 **An HTML widget stays out of `SampleSeeder`.** Saving its template marks every style as changed
 and empties the cached CSS, which validating a forum must not do. The other widgets are in.
+**So do user groups, and members given permissions**, for the same reason: deleting a user group
+does the same to the styles and the CSS.
 
 **Never generate a bare web address in a message.** XenForo turns one into a link preview and
 queues a job that fetches it. Generated links carry link text and point at `example.com`.

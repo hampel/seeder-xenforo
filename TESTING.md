@@ -67,6 +67,11 @@ needs a person.
 - **Administrators** — the member, then the `Admin` entity, which sets the member's flag and
   writes the permission entries. Removed by XenForo's member clean-up. A seeded administrator can
   sign in to the admin control panel.
+- **User groups and permissions** — the `UserGroup` entity, then XenForo's permission service,
+  which writes the group's permission entries. A member given permissions joins the group before
+  being saved, so XenForo builds their permission combination with it. Deleting a group is
+  XenForo's own: its entries go, the style cache is marked changed and the CSS cache emptied, and
+  a job removes every permission combination no member has. Not in the sample, for the CSS cache.
 - **The admin log** — entries written through the `AdminLog` entity as data; XenForo itself
   writes that table with a query. An entry for the control panel's front page has an empty path,
   which the entity refuses, so it is saved with one and then updated. XenForo prunes the table by
@@ -304,6 +309,18 @@ has repeats alike in administrator, address, path and input, and markup in what 
 empty path is written; entries are recorded under a name a later process can load; the seeder
 says it makes administrators and names the add-ons that will report.
 
+For permissions: a group writes flags and limits as the control panel does, and a permission the
+forum lacks or a value it would not take is refused; a member given permissions holds them, stays
+in the registered group and has a permission combination of their own; members given the same
+permissions share one group and `make()` creates none; cleaning removes members, group and
+entries, and after XenForo's job every permission table is back; the `User` seeder makes the
+members it is asked for and refuses `permitted` without `permissions`. The tests found that only
+deleting a group marks the styles changed, not creating one.
+
+For user agents: the robot `robotFor()` names agrees with XenForo's own check on crawlers,
+browsers and a command-line client; crawlers are all robots to the forum, Google's commonest; one
+can be asked for by robot, and an unknown robot is refused; a browser is never a robot.
+
 For API keys: a key acts as a member by default and is made after the member was; `for()` names
 a member even when others are recycled; super user, guest and inactive kinds; scopes are written
 as rows that go when the key is cleaned, and an unknown scope is refused; no mail is sent. On a
@@ -401,6 +418,11 @@ asserts that creating a member leaves the table as it was.
 - **A seeded administrator in the admin control panel.** The record, the flag and the permission
   entries were read back; nobody has signed in as one, or looked at a seeded log on XenForo's
   admin log page.
+- **Permissions from another add-on, seen on a page.** On the development forum members were
+  given `Hampel/HideAdverts`' permission and that add-on's own check read it, with every add-on
+  loaded; nobody has signed in as one and looked at a page.
+- **`crawlerUserAgent()` with an add-on that extends the robot list.** Its agents were checked
+  against XenForo's own list only; which robot each is on a forum with a longer list was not.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo

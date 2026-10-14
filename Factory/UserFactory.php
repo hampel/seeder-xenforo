@@ -40,6 +40,9 @@ class UserFactory extends AbstractFactory
 	/** @var array names handed out in this process and not yet saved */
 	private static $taken = [];
 
+	/** @var \WeakMap|null for each run, the group made for each set of permissions: [key => group] */
+	private static $groups;
+
 	public function definition()
 	{
 		$timeline = $this->context()->timeline;
@@ -304,6 +307,24 @@ class UserFactory extends AbstractFactory
 	}
 
 	/**
+	 * Holds these permissions, through a user group that grants them, as
+	 * `[permission group => [permission id => value]]` - `'allow'` or `'deny'` for a flag, a number
+	 * for a limit. The group is an extra one, so the member stays in the registered group too.
+	 *
+	 *     UserFactory::new()->withPermissions(['general' => ['bypassFloodCheck' => 'allow']])
+	 *
+	 * Every member of a run given the same permissions shares one group, made when the first of
+	 * them is saved and recorded with the run, so cleaning it removes the group. A permission the
+	 * forum does not have is refused. See `UserGroupFactory` for what a group costs a forum.
+	 *
+	 * @return static
+	 */
+	public function withPermissions(array $permissions)
+	{
+		return $this->extra('permissions', UserGroupFactory::checkPermissions($permissions));
+	}
+
+	/**
 	 * @param mixed $argument
 	 *
 	 * @return static
@@ -512,6 +533,17 @@ class UserFactory extends AbstractFactory
 
 	protected function store(Entity $entity): void
 	{
+		// in the group before the save, so the member's permissions are built with it
+		foreach (self::$extras[$entity] ?? [] AS [$kind, $argument])
+		{
+			if ($kind === 'permissions')
+			{
+				$groupIds = $entity->secondary_group_ids;
+				$groupIds[] = $this->groupGranting($argument)->user_group_id;
+				$entity->secondary_group_ids = array_values(array_unique($groupIds));
+			}
+		}
+
 		parent::store($entity);
 
 		// saved, so the database is what says the name is taken from here on
@@ -554,6 +586,10 @@ class UserFactory extends AbstractFactory
 		{
 			case 'no_password':
 				// set before the save, where the password otherwise is
+				break;
+
+			case 'permissions':
+				// joined before the save, where the member's permissions are built
 				break;
 
 			case 'no_authentication':
@@ -681,6 +717,36 @@ class UserFactory extends AbstractFactory
 	protected function clockFor(Entity $entity): ?int
 	{
 		return $entity->register_date;
+	}
+
+	/**
+	 * The group this run made for these permissions, or a new one.
+	 */
+	protected function groupGranting(array $permissions): Entity
+	{
+		self::sortPermissions($permissions);
+		$key = json_encode($permissions);
+
+		$context = $this->context();
+		self::$groups = self::$groups ?? new \WeakMap();
+		$made = self::$groups[$context] ?? [];
+
+		if (!isset($made[$key]) || !$made[$key]->exists())
+		{
+			$made[$key] = UserGroupFactory::new()->granting($permissions)->create();
+			self::$groups[$context] = $made;
+		}
+
+		return $made[$key];
+	}
+
+	private static function sortPermissions(array &$permissions): void
+	{
+		ksort($permissions);
+		foreach ($permissions AS &$values)
+		{
+			ksort($values);
+		}
 	}
 
 	/**
