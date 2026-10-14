@@ -35,6 +35,8 @@ use XF\Repository\TagRepository;
  *               suggestion forum, or an existing forum whose settings leave polls out
  *     states    1 to add threads and replies that are awaiting approval or soft-deleted, about
  *               one in six of each; 0 for everything visible (0)
+ *     ips       1 to log the address of every thread and reply, and give each author made here
+ *               an IP log, from addresses some of them share (0)
  *
  * A seeder that calls this one may pass `author_pool` and `forum_pool`, collections of existing
  * members and forum nodes, in place of authors and forum.
@@ -43,7 +45,9 @@ class ThreadSeeder extends AbstractSeeder
 {
 	public function run()
 	{
-		$authors = $this->param('author_pool') ?? UserFactory::new()->count($this->count('authors', 5))->create();
+		$ips = (bool) $this->count('ips', 0);
+		$authors = $this->param('author_pool')
+			?? ($ips ? UserFactory::new()->withIpLog() : UserFactory::new())->count($this->count('authors', 5))->create();
 		$forums = $this->param('forum_pool') ?? [$this->forum()];
 
 		$prefix = null;
@@ -172,6 +176,12 @@ class ThreadSeeder extends AbstractSeeder
 			{
 				return [[], [], [], ['message_state' => 'moderated'], [], ['deleted' => true]][$index % 6];
 			});
+		}
+
+		if ($ips)
+		{
+			$threads = $threads->withIp();
+			$replies = $replies->withIp();
 		}
 
 		$threads->has($replies)->create();

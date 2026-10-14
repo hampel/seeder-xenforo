@@ -28,17 +28,24 @@ use Hampel\Seeder\Factory\UserGroupFactory;
  *     permissions  what those members hold, as `general.bypassFloodCheck` or, where the value is
  *                not allow, `conversation.maxRecipients:50`; several separated by commas. Needed
  *                when `permitted` is set
+ *     ips        1 to give every member made here an IP log: registering, logins and changes to
+ *                the account, from addresses some of them share (0)
  */
 class UserSeeder extends AbstractSeeder
 {
+	/** @var bool */
+	private $ips = false;
+
 	public function run()
 	{
-		UserFactory::new()->count($this->count('users', 20))->create();
+		$this->ips = (bool) $this->count('ips', 0);
+
+		$this->member()->count($this->count('users', 20))->create();
 
 		$provider = \XF::db()->fetchOne('SELECT provider_id FROM xf_connected_account_provider ORDER BY display_order, provider_id LIMIT 1');
 		for ($i = 0, $access = $this->count('access', 0); $i < $access; $i++)
 		{
-			$member = UserFactory::new();
+			$member = $this->member();
 			switch ($i % 5)
 			{
 				// a forum can have had its providers removed; then the next kind stands in
@@ -54,32 +61,32 @@ class UserSeeder extends AbstractSeeder
 		$active = $this->count('active', 0);
 		if ($active)
 		{
-			UserFactory::new()->activeWithoutContent()->count($active)->create();
+			$this->member()->activeWithoutContent()->count($active)->create();
 		}
 
 		$moderated = $this->count('moderated', 0);
 		if ($moderated)
 		{
-			UserFactory::new()->moderated()->count($moderated)->create();
+			$this->member()->moderated()->count($moderated)->create();
 		}
 
 		$passwordless = $this->count('passwordless', 0);
 		if ($passwordless)
 		{
-			$member = UserFactory::new()->withoutPassword();
+			$member = $this->member()->withoutPassword();
 			($provider ? $member->withConnectedAccount($provider) : $member)->count($passwordless)->create();
 		}
 
 		$noAuth = $this->count('no_auth', 0);
 		if ($noAuth)
 		{
-			UserFactory::new()->withoutAuthentication()->count($noAuth)->create();
+			$this->member()->withoutAuthentication()->count($noAuth)->create();
 		}
 
 		$admins = $this->count('admins', 0);
 		if ($admins)
 		{
-			UserFactory::new()->administrator()->count($admins)->create();
+			$this->member()->administrator()->count($admins)->create();
 		}
 
 		$permitted = $this->count('permitted', 0);
@@ -90,21 +97,26 @@ class UserSeeder extends AbstractSeeder
 			{
 				throw new \InvalidArgumentException("The 'permitted' parameter needs 'permissions': which permissions they hold");
 			}
-			UserFactory::new()->withPermissions($permissions)->count($permitted)->create();
+			$this->member()->withPermissions($permissions)->count($permitted)->create();
 		}
 
 		$banned = $this->count('banned', 0);
 		if ($banned)
 		{
-			$moderator = UserFactory::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
-			UserFactory::new()->banned(null, $moderator)->count(intdiv($banned + 1, 2))->create();
-			UserFactory::new()->banned(time() + 30 * 86400, $moderator)->count(intdiv($banned, 2))->create();
+			$moderator = $this->member()->state(['is_moderator' => true, 'is_staff' => true])->create();
+			$this->member()->banned(null, $moderator)->count(intdiv($banned + 1, 2))->create();
+			$this->member()->banned(time() + 30 * 86400, $moderator)->count(intdiv($banned, 2))->create();
 		}
 
 		$bouncing = $this->count('bouncing', 0);
 		if ($bouncing)
 		{
-			UserFactory::new()->bouncing()->count($bouncing)->create();
+			$this->member()->bouncing()->count($bouncing)->create();
 		}
+	}
+
+	private function member(): UserFactory
+	{
+		return $this->ips ? UserFactory::new()->withIpLog() : UserFactory::new();
 	}
 }

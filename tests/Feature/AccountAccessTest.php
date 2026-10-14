@@ -267,7 +267,8 @@ class AccountAccessTest extends TestCase
 		$this->assertSame($users + 2, (int) $db->fetchOne('SELECT COUNT(*) FROM xf_user'), 'one companion for the alert and both follows');
 		$login = $db->fetchRow("SELECT * FROM xf_ip WHERE user_id = ? AND content_type = 'user' AND action = 'login'", $id);
 		$this->assertSame($id, (int) $login['content_id']);
-		$this->assertStringStartsWith('198.18.', \XF\Util\Ip::binaryToString($login['ip']));
+		$this->assertMatchesRegularExpression('/^(192\.0\.2|198\.51\.100|203\.0\.113)\.|^2001:db8:/', \XF\Util\Ip::binaryToString($login['ip']), 'from the documentation ranges');
+		$this->assertSame($login['ip'], $db->fetchOne('SELECT ip FROM xf_session_activity WHERE user_id = ?', $id), 'online from the same address');
 		$this->assertSame(min($member->last_activity, time()), (int) $login['log_date']);
 		$this->assertDatabaseHas('xf_session_activity', ['user_id' => $id, 'unique_key' => (string) $id, 'view_state' => 'valid']);
 		$this->assertDatabaseHas('xf_user_alert', ['alerted_user_id' => $id, 'action' => 'following', 'read_date' => 0]);

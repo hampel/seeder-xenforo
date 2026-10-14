@@ -8,8 +8,8 @@ use XF\Service\Thread\ReplierService;
  * A reply to a thread, written through XenForo's own replier and dated after the thread's last
  * post - so replies made one after another come out in order. Its notifications are never sent.
  *
- * Besides the post's columns, the attributes are message, message_parts, attachments and deleted,
- * as for a thread.
+ * Besides the post's columns, the attributes are message, message_parts, attachments, deleted and
+ * log_ip, as for a thread.
  */
 class PostFactory extends AbstractFactory
 {
@@ -29,6 +29,7 @@ class PostFactory extends AbstractFactory
 			'deleted' => false,
 			'delete_reason' => '',
 			'deleted_by' => null,
+			'log_ip' => false,
 			'message' => function (array $attributes) use ($context)
 			{
 				return $context->faker->bbCodeMessage($attributes['message_parts'] ?: ['short']);
@@ -67,6 +68,15 @@ class PostFactory extends AbstractFactory
 	}
 
 	/** @return static */
+	/**
+	 * Logs the address it was posted from, as XenForo does for a post made in a browser: an IP log
+	 * row for the post, dated with it, from one of the author's addresses for the run. See
+	 * `IpHistory`.
+	 *
+	 * @return static
+	 */
+	public function withIp() { return $this->state(['log_ip' => true]); }
+
 	public function withQuote() { return $this->state(['message_parts' => ['short', 'quote']]); }
 
 	/**
@@ -108,7 +118,7 @@ class PostFactory extends AbstractFactory
 		$post = $replier->getPost();
 		$own = array_diff_key($attributes, array_flip(
 			['thread_id', 'user_id', 'message', 'message_parts', 'attachments', 'post_date',
-				'deleted', 'delete_reason', 'deleted_by']
+				'deleted', 'delete_reason', 'deleted_by', 'log_ip']
 		));
 		$this->fill($post, $own);
 
@@ -121,6 +131,7 @@ class PostFactory extends AbstractFactory
 			'deleted' => (bool) $attributes['deleted'],
 			'delete_reason' => $attributes['delete_reason'],
 			'deleted_by' => $attributes['deleted_by'],
+			'log_ip' => !empty($attributes['log_ip']),
 		]);
 
 		return $post;
@@ -147,6 +158,11 @@ class PostFactory extends AbstractFactory
 
 			$replier->save();
 		});
+
+		if ($pending['log_ip'])
+		{
+			self::logIpFor($entity, $pending);
+		}
 	}
 
 	protected function clockFor(Entity $entity): ?int

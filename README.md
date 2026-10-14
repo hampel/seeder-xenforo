@@ -12,8 +12,8 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 approval, unconfirmed, banned, bouncing, administrators, holding permissions - forums, threads with replies, tags,
 reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
-definitions, warnings, API keys, widgets, who is online, server error log entries and admin log
-entries - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
+definitions, warnings, API keys, widgets, who is online, server error log entries, admin log
+entries and IP logs - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
 XenForo Media Gallery media items with comments - and removes them again. Profile posts are not
 built yet.
 
@@ -87,15 +87,15 @@ that is only overridden by another you gave is reported the same way.
 
 `seeder:run` takes the name of a seeder, and runs `Default` without one.
 
-**Anything marked *since 1.0.0b2* or *since 1.0.0b3* is not in the release before that one.** A
+**Anything marked *since 1.0.0b2*, *since 1.0.0b3* or *since 1.0.0b4* is not in the release before that one.** A
 run given a parameter the installed version does not have makes everything else, names the parameter as
 ignored and exits 1.
 
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
-| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
@@ -147,6 +147,7 @@ UserFactory::new()
 | an administrator *(since 1.0.0b3)* | `->administrator()` with no administrator permissions, `->administrator('user', 'option')` with those |
 | a permission *(since 1.0.0b3)* | `->withPermissions(['general' => ['bypassFloodCheck' => 'allow']])`, `'deny'`, or a number for a limit such as `['conversation' => ['maxRecipients' => 50]]` |
 | another way into the account | `->withConnectedAccount('google')`, `->withTwoStep()`, `->withPasskey()`, `->withRememberKey()`, `->withConfirmationPending()` |
+| an IP log *(since 1.0.0b4)* | `->withIpLog()`, or `->withIpLog(40)` for that many logins |
 | a member who has used the forum without posting | `->activeWithoutContent()`, or its parts: `->withLogin()`, `->withAlert()`, `->following()`, `->followedBy()` |
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
 
@@ -190,11 +191,21 @@ member has. `withConfirmationPending()` writes the confirmation row a registrati
 sends no email; `unconfirmed()` alone sets the state and writes no row.
 
 **`activeWithoutContent()` is a member who has logged in, has an unread alert, follows someone and
-is followed**, and has never posted. The login is an IP log row and a who-is-online row from
-`198.18.0.0/15`, the range set aside for testing. The other party to the alert and both follows is
+is followed**, and has never posted. The login is an IP log row and a who-is-online row from the
+member's own address, from the ranges set aside for documentation *(since 1.0.0b4; before,
+`198.18.0.0/15`)*. The other party to the alert and both follows is
 one more member, created with them; `following($member)`, `followedBy($member)` and
 `withAlert($member)` take an existing one. A run's JSON lists what each member was given under
 `has`.
+
+**An IP log is what XenForo writes as a member uses the forum** *(since 1.0.0b4)*: a row for
+registering, logins from then until their last activity - some through a "stay logged in" cookie -
+logins to the admin control panel for an administrator, and a few changes to the account, such as
+a new password or email address. Each member is given one to three addresses for the run and uses
+the first most. About one address in four is one another member of the run already has, so an
+address can lead to several members. Addresses come from the ranges set aside for documentation
+(`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` and `2001:db8::/32`), which no visitor comes
+from. A run's JSON lists each member's addresses under `addresses`, the one they use most first.
 
 None of these rows is recorded separately: they are the member's, and go when the member does.
 
@@ -215,8 +226,8 @@ ThreadFactory::new()
 |---|---|---|
 | `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()`, `allowing(...$threadTypes)`, all *(since 1.0.0b2)* |
 | `SearchForumFactory` *(since 1.0.0b2)* | a search forum; the entity returned is its node | `searching($forums)` |
-| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])`, `withPoll($choices, $votes)` *(since 1.0.0b2)* |
-| `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)` |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])`, `withPoll($choices, $votes)` *(since 1.0.0b2)*, `withIp()` *(since 1.0.0b4)* |
+| `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)`, `withIp()` *(since 1.0.0b4)* |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
 | `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |
 
@@ -227,6 +238,12 @@ The `with...()` states add up: `->withQuote()->withList()` gives a first post wi
 is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no
 moderator log is written. Replies are dated after the post they follow and never before their
 author joined. Attachments are real PNG images. Links and images point at `example.com`.
+
+**`withIp()` logs the address a post came from**, as XenForo does for one made in a browser: an IP
+log row for the post, dated with it, from one of its author's addresses for the run, with the post
+pointing at the row. XenForo logs a new thread's address against its first post. Without it a
+seeded post has no IP log row, as one XenForo's own automated posting makes has none. Cleaning
+removes the rows with the posts, which XenForo itself leaves for its pruning.
 
 **Forum types, since 1.0.0b2.** `article()`, `question()` and `suggestion()` make a forum of that type, and
 `type($id)` one of any type the forum has. It gets that type's settings as XenForo first offers
@@ -727,14 +744,15 @@ class ThingFactory extends AbstractFactory
 | `raw()` | the attributes only |
 
 **Faker knows a few things about forums.** Besides Faker's own, `$this->context()->faker` has
-`forumUsername()`, `threadTitle()` and `bbCodeMessage()`, and *since 1.0.0b3*:
+`forumUsername()`, `threadTitle()` and `bbCodeMessage()`, and:
 
 | method | gives |
 |---|---|
-| `crawlerUserAgent()` | a real crawler's user agent that this forum takes for a robot, the commonest most often |
+| `crawlerUserAgent()` *(since 1.0.0b3)*, and the three below | a real crawler's user agent that this forum takes for a robot, the commonest most often |
 | `crawlerUserAgent('bing')` | one this forum takes for that robot, by its key |
 | `browserUserAgent()` | a browser's user agent that this forum does not take for a robot |
 | `robotFor($userAgent)` | the key of the robot the forum takes an agent for, or `''` |
+| `documentationIp()` *(since 1.0.0b4)* | an address from the ranges set aside for documentation, one in ten IPv6 |
 
 Which agents are robots is the forum's robot list, which other add-ons can extend, so the same
 agent can be a robot on one forum and not on another. `robotFor()` matches the list as XenForo

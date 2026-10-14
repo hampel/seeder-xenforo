@@ -22,6 +22,7 @@ use XF\Service\Thread\TypeData\PollCreatorService;
  *     featured        true to feature it - see featured()
  *     poll            how many choices its poll has, 0 for no poll - see withPoll()
  *     poll_votes      the most members who vote in the poll
+ *     log_ip          true to log the first post's address - see withIp()
  */
 class ThreadFactory extends AbstractFactory
 {
@@ -46,6 +47,7 @@ class ThreadFactory extends AbstractFactory
 			'deleted' => false,
 			'delete_reason' => '',
 			'deleted_by' => null,
+			'log_ip' => false,
 			'message' => function (array $attributes) use ($context)
 			{
 				return $context->faker->bbCodeMessage($attributes['message_parts']);
@@ -230,6 +232,15 @@ class ThreadFactory extends AbstractFactory
 	}
 
 	/**
+	 * Logs the address it was posted from, as XenForo does for a post made in a browser: an IP log
+	 * row for the post, dated with it, from one of the author's addresses for the run. See
+	 * `IpHistory`.
+	 *
+	 * @return static
+	 */
+	public function withIp() { return $this->state(['log_ip' => true]); }
+
+	/**
 	 * @return static
 	 */
 	protected function withPart(string $part)
@@ -267,7 +278,7 @@ class ThreadFactory extends AbstractFactory
 
 		$own = array_diff_key($attributes, array_flip(
 			['node_id', 'user_id', 'title', 'message', 'message_parts', 'tags', 'attachments', 'post_date',
-				'deleted', 'delete_reason', 'deleted_by', 'featured', 'poll', 'poll_votes']
+				'deleted', 'delete_reason', 'deleted_by', 'featured', 'poll', 'poll_votes', 'log_ip']
 		));
 		$this->fill($thread, $own);
 
@@ -284,6 +295,7 @@ class ThreadFactory extends AbstractFactory
 			'deleted_by' => $attributes['deleted_by'],
 			'featured' => !empty($attributes['featured']),
 			'poll_votes' => $choices ? (int) $attributes['poll_votes'] : 0,
+			'log_ip' => !empty($attributes['log_ip']),
 		]);
 
 		return $thread;
@@ -313,6 +325,11 @@ class ThreadFactory extends AbstractFactory
 
 			$creator->save();
 		});
+
+		if ($pending['log_ip'])
+		{
+			self::logIpFor($entity->FirstPost, $pending);
+		}
 
 		$this->tag($entity, $pending);
 		$this->vote($entity, $pending);

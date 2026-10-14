@@ -1,6 +1,7 @@
 <?php namespace Hampel\Seeder\Factory\Concerns;
 
 use Hampel\Seeder\Clock;
+use Hampel\Seeder\Factory\IpHistory;
 use XF\Entity\User;
 use XF\FileWrapper;
 use XF\Mvc\Entity\Entity;
@@ -78,6 +79,18 @@ trait WritesPosts
 	}
 
 	/**
+	 * Log the address a post came from, as XenForo's post preparer does, and point the post at
+	 * the row.
+	 */
+	protected static function logIpFor(Entity $post, array $pending): void
+	{
+		$author = $pending['author'];
+		$address = IpHistory::pick(IpHistory::addressesFor(\Hampel\Seeder\Context::current(), $author->user_id));
+		$ip = IpHistory::log($author->user_id, $address, 'post', $post->post_id, '', $pending['date']);
+		$post->fastUpdate('ip_id', $ip->ip_id);
+	}
+
+	/**
 	 * @param object $service a thread creator or replier, already validated or not
 	 */
 	protected function assertValid($service): void
@@ -140,6 +153,7 @@ trait WritesPosts
 
 		static::silence($entity);
 		$entity->delete();
+		IpHistory::forgetPosts($postIds);
 
 		foreach ($dataIds AS $dataId)
 		{

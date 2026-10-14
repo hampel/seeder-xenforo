@@ -72,6 +72,11 @@ needs a person.
   being saved, so XenForo builds their permission combination with it. Deleting a group is
   XenForo's own: its entries go, the style cache is marked changed and the CSS cache emptied, and
   a job removes every permission combination no member has. Not in the sample, for the CSS cache.
+- **IP logs** — rows written through the `Ip` entity with their dates given, as XenForo's own
+  `logIp()` writes them with the date left to the column default. A member's go with the member,
+  through XenForo's clean-up and Seeder's sweep of `xf_ip` by member. A post's go with the post:
+  XenForo leaves them for its pruning, so Seeder deletes them itself. A seeded post points at its
+  row through `ip_id`, as a posted one does.
 - **The admin log** — entries written through the `AdminLog` entity as data; XenForo itself
   writes that table with a query. An entry for the control panel's front page has an empty path,
   which the entity refuses, so it is saved with one and then updated. XenForo prunes the table by
@@ -317,6 +322,17 @@ entries, and after XenForo's job every permission table is back; the `User` seed
 members it is asked for and refuses `permitted` without `permissions`. The tests found that only
 deleting a group marks the styles changed, not creating one.
 
+For IP logs: a member has one registration row at their registration date from their first
+address, the logins asked for with the last at their last activity, administrator logins only
+for an administrator (whichever order the two states are given in), account changes from XenForo's
+own action names, every row inside the member's span and from their own addresses, all from the
+documentation ranges; the run's JSON lists the addresses, the most used first; members share
+addresses and some have several, checked with an address source that never repeats, so sharing by
+chance cannot pass it; a thread's first post and each reply have a row dated with them and point
+at it, a post not asked for has none, and nothing is logged against a thread; cleaning takes every
+row, including those for posts by a member the batch did not make; both seeders write them only
+when asked.
+
 For user agents: the robot `robotFor()` names agrees with XenForo's own check on crawlers,
 browsers and a command-line client; crawlers are all robots to the forum, Google's commonest; one
 can be asked for by robot, and an unknown robot is refused; a browser is never a robot.
@@ -424,6 +440,9 @@ asserts that creating a member leaves the table as it was.
 - **Permissions from another add-on, seen on a page.** On the development forum members were
   given `Hampel/HideAdverts`' permission and that add-on's own check read it, with every add-on
   loaded; nobody has signed in as one and looked at a page.
+- **A seeded IP log in the admin control panel.** The rows were read back on the development
+  forum; nobody has looked at a member's IP list, an address's member list or a post's IP in the
+  control panel, or at another add-on that reads the IP log.
 - **`crawlerUserAgent()` with an add-on that extends the robot list.** Its agents were checked
   against XenForo's own list only; which robot each is on a forum with a longer list was not.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:

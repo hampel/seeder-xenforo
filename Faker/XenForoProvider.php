@@ -134,6 +134,24 @@ class XenForoProvider extends Base
 	}
 
 	/**
+	 * An address from the ranges set aside for documentation - 192.0.2.0/24, 198.51.100.0/24,
+	 * 203.0.113.0/24 and 2001:db8::/32 - which no visitor can come from, so a seeded address never
+	 * matches a real one. With 762 addresses in the three IPv4 ranges, a run of any size draws the
+	 * same one twice.
+	 *
+	 * @param float $ipv6 the share that are IPv6
+	 */
+	public function documentationIp(float $ipv6 = 0.1): string
+	{
+		if (mt_rand() / mt_getrandmax() < $ipv6)
+		{
+			return sprintf('2001:db8:%x:%x::%x', mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(1, 0xffff));
+		}
+
+		return ['192.0.2', '198.51.100', '203.0.113'][mt_rand(0, 2)] . '.' . mt_rand(1, 254);
+	}
+
+	/**
 	 * The user agent of a real crawler that this forum recognises as a robot - commonest first,
 	 * as a forum sees them. Only agents the forum's robot list matches are drawn, and that list is
 	 * one other add-ons can extend, so which robot an agent is depends on the forum.

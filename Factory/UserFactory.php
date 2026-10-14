@@ -221,13 +221,35 @@ class UserFactory extends AbstractFactory
 
 	/**
 	 * Has logged in: an IP log row for the login and a who-is-online row, both at the member's
-	 * last activity and from a reserved address.
+	 * last activity and from the member's address - see `IpHistory`.
 	 *
 	 * @return static
 	 */
 	public function withLogin()
 	{
 		return $this->extra('login');
+	}
+
+	/**
+	 * Has an IP log, as a member who has used the forum for a while does: the row for registering,
+	 * logins across the time since then - some through a "stay logged in" cookie, the last at the
+	 * member's last activity - logins to the admin control panel for an administrator, and a few
+	 * changes to the account. Each comes from one of the member's addresses, which are from the
+	 * ranges set aside for documentation and which other members of the run sometimes share. See
+	 * `IpHistory`.
+	 *
+	 * @param int|null $logins how many logins - between 3 and 12 if omitted
+	 *
+	 * @return static
+	 */
+	public function withIpLog(?int $logins = null)
+	{
+		if ($logins !== null && $logins < 1)
+		{
+			throw new \InvalidArgumentException('A member with an IP log has logged in at least once');
+		}
+
+		return $this->extra('ip_log', $logins);
 	}
 
 	/**
@@ -396,6 +418,17 @@ class UserFactory extends AbstractFactory
 		if (isset(self::$extras[$entity]))
 		{
 			$described['has'] = array_values(array_unique(array_column(self::$extras[$entity], 0)));
+
+			if (in_array('ip_log', $described['has'], true))
+			{
+				$described['addresses'] = array_map(function ($ip)
+				{
+					return \XF\Util\Ip::binaryToString($ip);
+				}, \XF::db()->fetchAllColumn(
+					"SELECT ip FROM xf_ip WHERE user_id = ? AND content_type = 'user' GROUP BY ip ORDER BY COUNT(*) DESC, ip",
+					$entity->user_id
+				));
+			}
 		}
 
 		return $described;
@@ -551,7 +584,13 @@ class UserFactory extends AbstractFactory
 
 		try
 		{
-			foreach (self::$extras[$entity] ?? [] AS [$kind, $argument])
+			// the IP log last, so it knows whether the member became an administrator
+			$extras = self::$extras[$entity] ?? [];
+			usort($extras, function ($a, $b)
+			{
+				return ($a[0] === 'ip_log') <=> ($b[0] === 'ip_log');
+			});
+			foreach ($extras AS [$kind, $argument])
 			{
 				$this->give($entity, $kind, $argument instanceof \Closure ? $argument() : $argument);
 			}
@@ -645,14 +684,10 @@ class UserFactory extends AbstractFactory
 				break;
 
 			case 'login':
-				// through the entities, as everything is that other add-ons may have added columns to
-				$log = $em->create('XF:Ip');
-				$log->bulkSet([
-					'user_id' => $user->user_id, 'content_type' => 'user', 'content_id' => $user->user_id,
-					// this entity alone takes the address as text
-					'action' => 'login', 'ip' => $address, 'log_date' => $when,
-				]);
-				$log->save();
+				// from the member's own address, the one an IP log gives them too
+				$address = IpHistory::addressesFor($this->context(), $user->user_id)[0];
+				IpHistory::log($user->user_id, $address, 'user', $user->user_id, 'login', $when);
+				$ip = \XF\Util\Ip::stringToBinary($address, false);
 
 				$online = $em->create('XF:SessionActivity');
 				$online->bulkSet([
@@ -661,6 +696,10 @@ class UserFactory extends AbstractFactory
 					'view_state' => 'valid', 'view_date' => $when,
 				]);
 				$online->save();
+				break;
+
+			case 'ip_log':
+				$this->logIps($user, $argument);
 				break;
 
 			case 'alert':
@@ -711,6 +750,48 @@ class UserFactory extends AbstractFactory
 
 			default:
 				throw new \LogicException("Unknown '{$kind}'");
+		}
+	}
+
+	/**
+	 * What withIpLog() writes: the action names and content are XenForo's own for each.
+	 */
+	protected function logIps(User $user, ?int $logins): void
+	{
+		$addresses = IpHistory::addressesFor($this->context(), $user->user_id);
+		$start = $user->register_date;
+		$end = max($start, min($user->last_activity, time()));
+		$at = function () use ($start, $end)
+		{
+			return mt_rand($start, $end);
+		};
+		$log = function (string $action, int $date) use ($user, $addresses)
+		{
+			IpHistory::log($user->user_id, IpHistory::pick($addresses), 'user', $user->user_id, $action, $date);
+		};
+
+		IpHistory::log($user->user_id, $addresses[0], 'user', $user->user_id, 'register', $start);
+
+		$logins = $logins ?? mt_rand(3, 12);
+		for ($i = 1; $i < $logins; $i++)
+		{
+			$log(mt_rand(1, 10) <= 3 ? 'cookie_login' : 'login', $at());
+		}
+		$log('login', $end);
+
+		if ($user->is_admin)
+		{
+			for ($i = mt_rand(1, max(1, intdiv($logins, 3))); $i > 0; $i--)
+			{
+				$log('login_admin', $at());
+			}
+		}
+
+		$changes = ['password_change', 'email_change', 'preferences_edit', 'account_details_edit', 'privacy_edit', 'signature_edit'];
+		shuffle($changes);
+		foreach (array_slice($changes, 0, mt_rand(0, 3)) AS $action)
+		{
+			$log($action, $at());
 		}
 	}
 
