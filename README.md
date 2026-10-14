@@ -9,7 +9,8 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 [support thread](https://xenforo.com/community/threads/seeder-test-data-generator.240676/)
 
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
-approval, unconfirmed, banned, bouncing, administrators, holding permissions - forums, threads with replies, tags,
+approval, unconfirmed, rejected, banned, bouncing, administrators, holding permissions, with a
+history of changes and of names - forums, threads with replies, tags,
 reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, widgets, who is online, server error log entries, admin log
@@ -94,7 +95,7 @@ ignored and exits 1.
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
-| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `changes` *(since 1.0.0b4)* (0; more members who have changed their account, some of it changed by an administrator), `renamed` *(since 1.0.0b4)* (0; more members who have changed their name, some with a later request rejected or awaiting approval), `rejected` *(since 1.0.0b4)* (0; more members whose registration was rejected, by turns by the spam check and by a moderator), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
@@ -147,6 +148,9 @@ UserFactory::new()
 | an administrator *(since 1.0.0b3)* | `->administrator()` with no administrator permissions, `->administrator('user', 'option')` with those |
 | a permission *(since 1.0.0b3)* | `->withPermissions(['general' => ['bypassFloodCheck' => 'allow']])`, `'deny'`, or a number for a limit such as `['conversation' => ['maxRecipients' => 50]]` |
 | another way into the account | `->withConnectedAccount('google')`, `->withTwoStep()`, `->withPasskey()`, `->withRememberKey()`, `->withConfirmationPending()` |
+| registration rejected *(since 1.0.0b4)* | `->rejected()` by XenForo's spam check, `->rejected($moderator)` by a moderator from the approval queue |
+| a history of changes to the account *(since 1.0.0b4)* | `->withChanges()`, `->withChanges(10, $admin)` |
+| other names before this one *(since 1.0.0b4)* | `->renamed()`, `->renamed(3)`; with `->withUsernameRequest()` awaiting approval or `->withUsernameRequest('rejected')` |
 | an IP log *(since 1.0.0b4)* | `->withIpLog()`, or `->withIpLog(40)` for that many logins |
 | a member who has used the forum without posting | `->activeWithoutContent()`, or its parts: `->withLogin()`, `->withAlert()`, `->following()`, `->followedBy()` |
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
@@ -206,6 +210,18 @@ the first most. About one address in four is one another member of the run alrea
 address can lead to several members. Addresses come from the ranges set aside for documentation
 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` and `2001:db8::/32`), which no visitor comes
 from. A run's JSON lists each member's addresses under `addresses`, the one they use most first.
+
+**A member's history is written as XenForo writes it** *(since 1.0.0b4)*. `withChanges()` saves
+each change through the entities as the member, or as an administrator, with XenForo's clock at
+that moment, so XenForo's own change log records it: time zone, location, website, signature,
+email address, privacy and mail preferences by the member; custom title, email address, location
+and a custom user field by the administrator. The member ends with the values the last changes
+left. `renamed()` records username changes from made-up earlier names to the member's name - some
+self-requested and approved by a moderator, some by an administrator - and does not rename the
+member, so nothing of theirs has to be rewritten. A rejected registration has XenForo's rejection
+record: the spam check's own reason at registration, or a moderator's some time after. **A
+moderator's rejection writes no moderator log entry here**, where XenForo's approval queue would;
+Seeder writes no moderator log at all.
 
 None of these rows is recorded separately: they are the member's, and go when the member does.
 

@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Factory;
 
+use Hampel\Seeder\Clock;
 use XF\Entity\User;
 use XF\Mvc\Entity\Entity;
 use XF\Repository\TfaRepository;
@@ -42,6 +43,9 @@ class UserFactory extends AbstractFactory
 
 	/** @var \WeakMap|null for each run, the group made for each set of permissions: [key => group] */
 	private static $groups;
+
+	/** @var \WeakMap|null for each run, the moderator and administrator made to act on members */
+	private static $staff;
 
 	public function definition()
 	{
@@ -250,6 +254,83 @@ class UserFactory extends AbstractFactory
 		}
 
 		return $this->extra('ip_log', $logins);
+	}
+
+	/**
+	 * Has changed their account since registering, as XenForo's change log records it: their
+	 * time zone, location, website, signature, email address, privacy and mail preferences, each
+	 * saved through the entities with XenForo's clock at the moment of the change. About one change
+	 * in four is an administrator's instead - a custom title, a new email address, a location, a
+	 * custom user field - so the log has both kinds of editor. The member ends with the values the
+	 * last changes left.
+	 *
+	 * @param int|null  $changes how many - between 2 and 6 if omitted
+	 * @param User|null $by      the administrator - one made for the run if omitted
+	 *
+	 * @return static
+	 */
+	public function withChanges(?int $changes = null, ?User $by = null)
+	{
+		if ($changes !== null && $changes < 1)
+		{
+			throw new \InvalidArgumentException('A member with changes has at least one');
+		}
+
+		return $this->extra('changes', [$changes, $by]);
+	}
+
+	/**
+	 * Has been known by other names: approved username changes from made-up earlier names to the
+	 * member's name, each recorded as XenForo records one. Most are the member's own request,
+	 * some approved by a moderator; the rest an administrator's. The member is not renamed, so
+	 * nothing of theirs has to be rewritten.
+	 *
+	 * @param int $times how many changes
+	 *
+	 * @return static
+	 */
+	public function renamed(int $times = 1)
+	{
+		if ($times < 1)
+		{
+			throw new \InvalidArgumentException('A renamed member has changed their name at least once');
+		}
+
+		return $this->extra('renamed', $times);
+	}
+
+	/**
+	 * Has asked to change their name to one nobody has, after any change renamed() gives them:
+	 * awaiting approval, in the approval queue, or rejected by a moderator with a reason.
+	 *
+	 * @param string $state `moderated` or `rejected`
+	 *
+	 * @return static
+	 */
+	public function withUsernameRequest(string $state = 'moderated')
+	{
+		if (!in_array($state, ['moderated', 'rejected'], true))
+		{
+			throw new \InvalidArgumentException("A username request is 'moderated' or 'rejected', not '{$state}'");
+		}
+
+		return $this->extra('username_request', $state);
+	}
+
+	/**
+	 * Registration rejected. With no one named, it is XenForo's spam check that rejected them, at
+	 * registration, with its own reason. Named, a moderator rejected them from the approval queue
+	 * some time after they registered, with a reason. Either way XenForo keeps the rejection
+	 * record. **A moderator's rejection writes no moderator log entry here**, where XenForo's
+	 * approval queue would.
+	 *
+	 * @param User|\Closure|null $by the moderator, or a closure that returns one
+	 *
+	 * @return static
+	 */
+	public function rejected($by = null)
+	{
+		return $this->state(['user_state' => $by === null ? 'rejected' : 'moderated'])->extra('rejected', $by);
 	}
 
 	/**
@@ -702,6 +783,23 @@ class UserFactory extends AbstractFactory
 				$this->logIps($user, $argument);
 				break;
 
+			case 'changes':
+				[$count, $by] = $argument;
+				$this->makeChanges($user, $count ?? mt_rand(2, 6), $by);
+				break;
+
+			case 'renamed':
+				$this->rename($user, $argument);
+				break;
+
+			case 'username_request':
+				$this->requestUsername($user, $argument);
+				break;
+
+			case 'rejected':
+				$this->reject($user, $argument);
+				break;
+
 			case 'alert':
 				$from = $argument ?: static::new()->create();
 				$alert = $em->create('XF:UserAlert');
@@ -793,6 +891,246 @@ class UserFactory extends AbstractFactory
 		{
 			$log($action, $at());
 		}
+	}
+
+	/**
+	 * The moderator or administrator this run made to act on members, made the first time one is
+	 * needed.
+	 */
+	protected function staff(string $kind): User
+	{
+		$context = $this->context();
+		self::$staff = self::$staff ?? new \WeakMap();
+		$made = self::$staff[$context] ?? [];
+
+		if (!isset($made[$kind]) || !$made[$kind]->exists())
+		{
+			$made[$kind] = $kind === 'admin'
+				? static::new()->administrator()->create()
+				: static::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
+			self::$staff[$context] = $made;
+		}
+
+		return $made[$kind];
+	}
+
+	/**
+	 * Dates for things done to a member, in order, each with who did it: by the member, between
+	 * registering and their last activity; by someone else, after both had joined, and possibly
+	 * after the member was last seen.
+	 *
+	 * @param User[] $editors one for each date
+	 *
+	 * @return array [[date, editor], ...] sorted by date
+	 */
+	protected function datesFor(User $user, array $editors): array
+	{
+		$start = $user->register_date;
+		$end = max($start, min($user->last_activity, time()));
+
+		$dated = [];
+		foreach ($editors AS $editor)
+		{
+			if ($editor->user_id === $user->user_id)
+			{
+				$dated[] = [mt_rand($start, $end), $editor];
+				continue;
+			}
+
+			$from = max($start, min($editor->register_date, time()));
+			$dated[] = [mt_rand($from, max($from, $end)), $editor];
+		}
+		usort($dated, function ($a, $b) { return $a[0] <=> $b[0]; });
+
+		return $dated;
+	}
+
+	/**
+	 * What withChanges() does: one change per date, saved as the member or the administrator
+	 * would save it, so XenForo's change log behaviour writes the row.
+	 */
+	protected function makeChanges(User $user, int $count, ?User $by): void
+	{
+		$faker = $this->context()->faker;
+		$editors = [];
+		for ($i = 0; $i < $count; $i++)
+		{
+			$editors[] = mt_rand(1, 4) === 1 ? ($by ?? $this->staff('admin')) : $user;
+		}
+
+		$fields = array_keys(\XF::app()->getCustomFields('users')->getFieldDefinitions());
+		$email = function () use ($user, $faker)
+		{
+			$user->email = self::emailFor($user->username . mt_rand(10, 9999), $faker->safeEmailDomain());
+
+			return $user;
+		};
+		$byMember = [
+			function () use ($user)
+			{
+				$zones = array_values(array_diff(['Europe/London', 'America/New_York', 'Australia/Sydney', 'Asia/Tokyo', 'Europe/Berlin'], [$user->timezone]));
+				$user->timezone = $zones[mt_rand(0, count($zones) - 1)];
+
+				return $user;
+			},
+			function () use ($user, $faker) { $user->Profile->location = $faker->city(); return $user->Profile; },
+			function () use ($user, $faker) { $user->Profile->website = 'https://example.com/' . $faker->slug(2); return $user->Profile; },
+			function () use ($user, $faker) { $user->Profile->signature = rtrim($faker->sentence(mt_rand(4, 10)), '.'); return $user->Profile; },
+			function () use ($user) { $user->Option->receive_admin_email = !$user->Option->receive_admin_email; return $user->Option; },
+			function () use ($user)
+			{
+				$choices = array_values(array_diff(['everyone', 'members', 'followed', 'none'], [$user->Privacy->allow_view_profile]));
+				$user->Privacy->allow_view_profile = $choices[mt_rand(0, count($choices) - 1)];
+
+				return $user->Privacy;
+			},
+			$email,
+		];
+		$byAdmin = [
+			function () use ($user, $faker) { $user->custom_title = ucfirst($faker->words(2, true)); return $user; },
+			$email,
+			function () use ($user, $faker) { $user->Profile->location = $faker->city(); return $user->Profile; },
+		];
+		if ($fields)
+		{
+			$byAdmin[] = function () use ($user, $fields, $faker)
+			{
+				$definitions = \XF::app()->getCustomFields('users');
+				$fieldId = $fields[mt_rand(0, count($fields) - 1)];
+				$value = UserFieldFactory::valueFor($definitions[$fieldId], $faker);
+				if ($value !== null)
+				{
+					$user->Profile->custom_fields->set($fieldId, $value, 'admin');
+				}
+
+				return $user->Profile;
+			};
+		}
+
+		foreach ($this->datesFor($user, $editors) AS [$date, $editor])
+		{
+			$choices = $editor->user_id === $user->user_id ? $byMember : $byAdmin;
+			$change = $choices[mt_rand(0, count($choices) - 1)];
+
+			Clock::at($date, function () use ($editor, $change)
+			{
+				\XF::asVisitor($editor, function () use ($change)
+				{
+					$entity = $change();
+					static::silence($entity);
+					$entity->save();
+				});
+			});
+		}
+	}
+
+	/**
+	 * What renamed() does: the history ends at the member's name, so the member keeps it.
+	 */
+	protected function rename(User $user, int $times): void
+	{
+		$names = [];
+		for ($i = 0; $i < $times; $i++)
+		{
+			$names[] = $this->uniqueUsername();
+			// an earlier name is free again once it is changed, so it holds nothing for this run
+			unset(self::$taken[strtolower(end($names))]);
+		}
+		$names[] = $user->username;
+
+		$editors = [];
+		for ($i = 0; $i < $times; $i++)
+		{
+			$editors[] = mt_rand(1, 4) === 1 ? $this->staff('admin') : $user;
+		}
+
+		foreach ($this->datesFor($user, $editors) AS $i => [$date, $editor])
+		{
+			$self = $editor->user_id === $user->user_id;
+			$this->usernameChange($user, $names[$i], $names[$i + 1], 'approved', $date, [
+				'change_user_id' => $editor->user_id,
+				'moderator_user_id' => $self && mt_rand(0, 1) ? $this->staff('moderator')->user_id : 0,
+				'change_reason' => $self ? rtrim($this->context()->faker->sentence(mt_rand(3, 7)), '.') : '',
+			]);
+		}
+
+		// XenForo sets this when it renames a member, which this does not do
+		\XF::repository(\XF\Repository\UsernameChangeRepository::class)->rebuildLastUsernameChange($user);
+	}
+
+	/**
+	 * What withUsernameRequest() does: asked for after every other change of name.
+	 */
+	protected function requestUsername(User $user, string $state): void
+	{
+		$faker = $this->context()->faker;
+		$new = $this->uniqueUsername();
+		unset(self::$taken[strtolower($new)]);
+
+		$after = (int) \XF::db()->fetchOne('SELECT MAX(change_date) FROM xf_username_change WHERE user_id = ?', $user->user_id);
+		[[$date]] = $this->datesFor($user, [$user]);
+		$date = max($date, min($after + 1, max($user->register_date, min($user->last_activity, time()))));
+
+		$values = ['change_user_id' => $user->user_id, 'change_reason' => rtrim($faker->sentence(mt_rand(3, 7)), '.')];
+		if ($state === 'rejected')
+		{
+			$values += ['moderator_user_id' => $this->staff('moderator')->user_id, 'reject_reason' => rtrim($faker->sentence(mt_rand(3, 8)), '.')];
+		}
+
+		$this->usernameChange($user, $user->username, $new, $state, $date, $values);
+	}
+
+	protected function usernameChange(User $user, string $old, string $new, string $state, int $date, array $values): void
+	{
+		$change = \XF::em()->create('XF:UsernameChange');
+		$change->bulkSet($values + [
+			'user_id' => $user->user_id, 'old_username' => $old, 'change_state' => $state,
+			'change_date' => $date, 'visible' => true,
+		]);
+		// the name is the member's own or one already checked as free, as XenForo's own log of a change trusts it
+		$change->setTrusted('new_username', $new);
+
+		Clock::at($date, function () use ($change)
+		{
+			$change->save();
+		});
+
+		// the member's last change of name is worked out at the end of the request
+		\XF::triggerRunOnce();
+	}
+
+	/**
+	 * What rejected() does: by XenForo's spam check at registration, or by a moderator after it.
+	 *
+	 * @param User|\Closure|null $by
+	 */
+	protected function reject(User $user, $by): void
+	{
+		$by = $by instanceof \Closure ? $by() : $by;
+
+		if ($by === null)
+		{
+			// rejected as the member was saved; the record's date and reason are XenForo's spam check's
+			$reason = \XF::app()->stringFormatter()->wholeWordTrim(\XF::phrase('spam_prevention_registration_rejected')->render(), 200);
+			$user->Reject->fastUpdate(['reject_reason' => $reason, 'reject_date' => $user->register_date, 'reject_user_id' => 0]);
+
+			return;
+		}
+
+		[[$date]] = $this->datesFor($user, [$by]);
+		$reason = rtrim($this->context()->faker->sentence(mt_rand(3, 8)), '.');
+
+		static::silence($user);
+		// as the moderator, so the change log names them, as it does a rejection from the queue
+		Clock::at($date, function () use ($user, $by, $reason)
+		{
+			\XF::asVisitor($by, function () use ($user, $by, $reason)
+			{
+				$user->rejectUser($reason, $by);
+			});
+		});
+		// a column default, fixed when its structure was first built
+		$user->Reject->fastUpdate('reject_date', $date);
 	}
 
 	protected function clockFor(Entity $entity): ?int

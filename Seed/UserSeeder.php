@@ -28,6 +28,12 @@ use Hampel\Seeder\Factory\UserGroupFactory;
  *     permissions  what those members hold, as `general.bypassFloodCheck` or, where the value is
  *                not allow, `conversation.maxRecipients:50`; several separated by commas. Needed
  *                when `permitted` is set
+ *     changes    how many more who have changed their account since, some of it changed by an
+ *                administrator, as XenForo's change log records it (0)
+ *     renamed    how many more who have changed their name, by turns once, twice with a later
+ *                request rejected, and once with a request awaiting approval (0)
+ *     rejected   how many more whose registration was rejected, by turns by XenForo's spam check
+ *                and by a moderator (0)
  *     ips        1 to give every member made here an IP log: registering, logins and changes to
  *                the account, from addresses some of them share (0)
  */
@@ -35,6 +41,9 @@ class UserSeeder extends AbstractSeeder
 {
 	/** @var bool */
 	private $ips = false;
+
+	/** @var \XF\Entity\User|null */
+	private $moderator;
 
 	public function run()
 	{
@@ -103,9 +112,30 @@ class UserSeeder extends AbstractSeeder
 		$banned = $this->count('banned', 0);
 		if ($banned)
 		{
-			$moderator = $this->member()->state(['is_moderator' => true, 'is_staff' => true])->create();
+			$moderator = $this->moderator();
 			$this->member()->banned(null, $moderator)->count(intdiv($banned + 1, 2))->create();
 			$this->member()->banned(time() + 30 * 86400, $moderator)->count(intdiv($banned, 2))->create();
+		}
+
+		$changes = $this->count('changes', 0);
+		if ($changes)
+		{
+			$this->member()->withChanges()->count($changes)->create();
+		}
+
+		for ($i = 0, $renamed = $this->count('renamed', 0); $i < $renamed; $i++)
+		{
+			switch ($i % 3)
+			{
+				case 0: $this->member()->renamed(1)->create(); break;
+				case 1: $this->member()->renamed(2)->withUsernameRequest('rejected')->create(); break;
+				case 2: $this->member()->renamed(1)->withUsernameRequest()->create(); break;
+			}
+		}
+
+		for ($i = 0, $rejected = $this->count('rejected', 0); $i < $rejected; $i++)
+		{
+			$this->member()->rejected($i % 2 ? $this->moderator() : null)->create();
 		}
 
 		$bouncing = $this->count('bouncing', 0);
@@ -113,6 +143,14 @@ class UserSeeder extends AbstractSeeder
 		{
 			$this->member()->bouncing()->count($bouncing)->create();
 		}
+	}
+
+	/**
+	 * One moderator for whatever this run has a moderator do.
+	 */
+	private function moderator(): \XF\Entity\User
+	{
+		return $this->moderator = $this->moderator ?? $this->member()->state(['is_moderator' => true, 'is_staff' => true])->create();
 	}
 
 	private function member(): UserFactory

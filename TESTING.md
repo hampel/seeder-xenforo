@@ -72,6 +72,12 @@ needs a person.
   being saved, so XenForo builds their permission combination with it. Deleting a group is
   XenForo's own: its entries go, the style cache is marked changed and the CSS cache emptied, and
   a job removes every permission combination no member has. Not in the sample, for the CSS cache.
+- **A member's history** — the change log is XenForo's own behaviour, written as each change is
+  saved through the `User`, `UserProfile`, `UserOption` and `UserPrivacy` entities with the clock
+  moved and the editor as the visitor. Username changes are `UsernameChange` entities with the new
+  name trusted, as XenForo's own log of a change trusts it; a pending one puts itself in the
+  approval queue. A rejection is the `User` entity's own `rejectUser()`, as the moderator. All of
+  it goes in XenForo's member clean-up.
 - **IP logs** — rows written through the `Ip` entity with their dates given, as XenForo's own
   `logIp()` writes them with the date left to the column default. A member's go with the member,
   through XenForo's clean-up and Seeder's sweep of `xf_ip` by member. A post's go with the post:
@@ -322,6 +328,16 @@ entries, and after XenForo's job every permission table is back; the `User` seed
 members it is asked for and refuses `permitted` without `permissions`. The tests found that only
 deleting a group marks the styles changed, not creating one.
 
+For a member's history: changes by the member and by an administrator, each inside the member's
+span, each field's old value the one before it left, the member ending with the last values, and
+the dates spread rather than all at the moment of the run; a history of names from made-up names
+to the member's own, each change following the last, the member not renamed and their last-change
+dates set as XenForo sets them; a request awaiting approval in the queue and dated after the
+changes, a rejected one with a moderator and a reason; a rejection by the spam check with its
+reason at registration, and by a moderator after both had joined, logged in the change log as
+that moderator; out of the approval queue either way; cleaning takes every row; the seeder makes
+what it is asked for and nothing is refused at zero.
+
 For IP logs: a member has one registration row at their registration date from their first
 address, the logins asked for with the last at their last activity, administrator logins only
 for an administrator (whichever order the two states are given in), account changes from XenForo's
@@ -440,6 +456,10 @@ asserts that creating a member leaves the table as it was.
 - **Permissions from another add-on, seen on a page.** On the development forum members were
   given `Hampel/HideAdverts`' permission and that add-on's own check read it, with every add-on
   loaded; nobody has signed in as one and looked at a page.
+- **A seeded member's history in the admin control panel.** The change log, username changes,
+  the pending request in the approval queue and both kinds of rejection were read back on the
+  development forum; nobody has looked at a member's change log or the approval queue in a
+  browser, or approved or rejected the seeded request there.
 - **A seeded IP log in the admin control panel.** The rows were read back on the development
   forum; nobody has looked at a member's IP list, an address's member list or a post's IP in the
   control panel, or at another add-on that reads the IP log.

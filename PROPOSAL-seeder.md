@@ -304,7 +304,8 @@ Each phase ends with something that runs.
    2026-10-12; forum types, search forums, polls, sticky threads, resource discussion threads and
    media comments 2026-10-13; widgets, administrators and the admin log the same day; user groups,
    members holding permissions and crawler user agents 2026-10-14; IP logs for members, threads
-   and replies 2026-10-15. Profile posts are what is left.*
+   and replies 2026-10-15; the change log, username changes and rejected registrations the same
+   day. Profile posts are what is left.*
 
 ### The no-trace test is the acceptance test
 
