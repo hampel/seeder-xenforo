@@ -3,6 +3,7 @@
 use Hampel\Seeder\Cli\Command\Run;
 use Hampel\Seeder\CollectingRecorder;
 use Hampel\Seeder\Context;
+use Hampel\Seeder\Factory\ForumFactory;
 use Hampel\Seeder\Factory\UserFactory;
 use Hampel\Seeder\Factory\UserGroupFactory;
 use Hampel\Seeder\Record\Cleaner;
@@ -20,7 +21,7 @@ class PermissionsTest extends TestCase
 {
 	use UsesDatabaseTransactions;
 
-	private const TABLES = ['xf_user', 'xf_user_group', 'xf_user_group_relation', 'xf_permission_entry',
+	private const TABLES = ['xf_user', 'xf_user_group', 'xf_user_group_relation', 'xf_permission_entry', 'xf_permission_entry_content',
 		'xf_permission_combination', 'xf_permission_combination_user_group', 'xf_permission_cache_content'];
 
 	/** @var Context|null */
@@ -214,6 +215,143 @@ class PermissionsTest extends TestCase
 		[$code, , $summary] = $this->run_(['seeder' => 'User', '--batch' => 'test-seeder-permitted-unasked', '--param' => ['users=0', 'permissions=general.bypassFloodCheck']]);
 		$this->assertSame(1, $code);
 		$this->assertStringContainsString('permissions', $summary);
+	}
+
+	public function test_a_group_grants_permissions_on_a_forum_as_the_control_panel_writes_them()
+	{
+		$this->recordInto('test-node-group');
+		$forum = ForumFactory::new()->create();
+
+		$group = UserGroupFactory::new()
+			->grantingOn($forum, ['forum' => ['viewOthers' => 'deny', 'editOwnPostTimeLimit' => 30]])
+			->grantingOn($forum, ['general' => ['viewNode' => 'content_allow']])
+			->create();
+
+		$this->assertDatabaseHas('xf_permission_entry_content', ['content_type' => 'node', 'content_id' => $forum->node_id,
+			'user_group_id' => $group->user_group_id, 'user_id' => 0, 'permission_group_id' => 'forum', 'permission_id' => 'viewOthers', 'permission_value' => 'deny']);
+		$this->assertDatabaseHas('xf_permission_entry_content', ['content_type' => 'node', 'content_id' => $forum->node_id,
+			'user_group_id' => $group->user_group_id, 'permission_id' => 'editOwnPostTimeLimit', 'permission_value' => 'use_int', 'permission_value_int' => 30]);
+		$this->assertDatabaseCount('xf_permission_entry', 0, ['user_group_id' => $group->user_group_id]);
+		$this->assertSame([$forum->node_id => [
+			'forum.editOwnPostTimeLimit' => 30, 'forum.viewOthers' => 'deny', 'general.viewNode' => 'content_allow',
+		]], UserGroupFactory::describe($group)['node_permissions']);
+		$this->styles->shouldNotHaveReceived('updateAllStylesLastModifiedDateLater');
+	}
+
+	public function test_a_node_permission_the_forum_would_not_take_is_refused()
+	{
+		$this->recordInto('test-node-refused');
+		$forum = ForumFactory::new()->create();
+
+		foreach ([
+			[['general' => ['bypassFloodCheck' => 'deny']], 'not a permission a node can have'],
+			[['forum' => ['viewOthers' => 'allow']], "takes 'content_allow', 'reset' or 'deny' on a node"],
+			[['forum' => ['noSuchPermission' => 'deny']], "no permission 'forum.noSuchPermission'"],
+		] AS [$permissions, $message])
+		{
+			try
+			{
+				UserGroupFactory::new()->grantingOn($forum, $permissions);
+				$this->fail('accepted: ' . json_encode($permissions));
+			}
+			catch (\InvalidArgumentException $e)
+			{
+				$this->assertStringContainsString($message, $e->getMessage());
+			}
+		}
+
+		$this->expectExceptionMessage('a saved forum or other node');
+		UserGroupFactory::new()->grantingOn($this->app()->em()->create('XF:Node'), ['forum' => ['viewOthers' => 'deny']]);
+	}
+
+	public function test_members_of_groups_with_different_node_permissions_are_in_different_combinations()
+	{
+		$this->recordInto('test-node-members');
+		$forum = ForumFactory::new()->create();
+		$denied = UserGroupFactory::new()->grantingOn($forum, ['forum' => ['viewOthers' => 'deny']])->create();
+		$other = UserGroupFactory::new()->grantingOn($forum, ['forum' => ['postThread' => 'deny']])->create();
+
+		$a = UserFactory::new()->create(['secondary_group_ids' => [$denied->user_group_id]]);
+		$b = UserFactory::new()->create(['secondary_group_ids' => [$other->user_group_id]]);
+		$plain = UserFactory::new()->create();
+
+		$em = $this->app()->em();
+		[$a, $b, $plain] = [$em->find('XF:User', $a->user_id), $em->find('XF:User', $b->user_id), $em->find('XF:User', $plain->user_id)];
+		$this->assertFalse($a->hasNodePermission($forum->node_id, 'viewOthers'));
+		$this->assertTrue($b->hasNodePermission($forum->node_id, 'viewOthers'));
+		$this->assertFalse($b->hasNodePermission($forum->node_id, 'postThread'));
+		// a new forum reaches combinations that already existed through a queued rebuild, which
+		// this test fakes; the members in new groups have new combinations, built with it
+		$this->app()->permissionBuilder()->rebuildCombination($plain->PermissionCombination);
+		$plain->clearCache('PermissionSet');
+		$this->assertTrue($plain->hasNodePermission($forum->node_id, 'viewOthers'));
+		$this->assertCount(3, array_unique([$a->permission_combination_id, $b->permission_combination_id, $plain->permission_combination_id]));
+	}
+
+	public function test_cleaning_removes_node_permissions_with_the_group()
+	{
+		$before = $this->counts();
+		$recorder = $this->recordInto('test-node-clean');
+		$forum = ForumFactory::new()->create();
+
+		$group = UserGroupFactory::new()->grantingOn($forum, ['forum' => ['viewOthers' => 'deny']])->create();
+		UserFactory::new()->count(2)->create(['secondary_group_ids' => [$group->user_group_id]]);
+		$this->assertSame($before['xf_permission_entry_content'] + 1, $this->counts()['xf_permission_entry_content']);
+
+		$this->assertSame([], (new Cleaner())->clean('test-node-clean')['failed']);
+		$this->runJobToCompletion('XF:UserGroupDelete', ['user_group_id' => $group->user_group_id]);
+
+		$after = $this->counts();
+		$this->assertSame($before['xf_permission_entry_content'], $after['xf_permission_entry_content']);
+		$this->assertSame($before['xf_user_group'], $after['xf_user_group']);
+		$this->assertSame($before['xf_user'], $after['xf_user']);
+	}
+
+	public function test_the_thread_seeder_spreads_its_authors_across_groups_with_node_permissions()
+	{
+		[$code, $json, $summary] = $this->run_(['seeder' => 'Thread', '--batch' => 'test-seeder-node-groups', '--seed' => '5',
+			'--param' => ['threads=4', 'replies=0', 'authors=5', 'prefix=0', 'permission_groups=3']]);
+		$this->assertSame(0, $code, $summary);
+
+		$created = json_decode($json, true)['created'];
+		$this->assertCount(3, $created['XF:UserGroup']);
+		$nodeId = $created['XF:Node'][0]['id'];
+		foreach ($created['XF:UserGroup'] AS $group)
+		{
+			$this->assertSame([$nodeId => ['forum.viewOthers' => 'deny']], $group['node_permissions']);
+		}
+
+		$em = $this->app()->em();
+		$combinations = [];
+		foreach ($created['XF:User'] AS $author)
+		{
+			$user = $em->find('XF:User', $author['id']);
+			$this->assertFalse($user->hasNodePermission($nodeId, 'viewOthers'), 'each author is in a group');
+			$combinations[$user->permission_combination_id] = true;
+		}
+		$this->assertCount(3, $combinations, 'as many combinations as groups');
+
+		// an author sees their own threads still
+		$thread = $em->find('XF:Thread', $created['XF:Thread'][0]['id']);
+		$this->assertTrue(\XF::asVisitor($thread->User, function () use ($thread) { return $thread->canView(); }));
+	}
+
+	public function test_through_default_each_group_is_denied_a_different_forum()
+	{
+		[$code, $json, $summary] = $this->run_(['seeder' => 'Default', '--batch' => 'test-default-node-groups', '--seed' => '5',
+			'--param' => ['users=6', 'forums=3', 'threads=6', 'replies=0', 'prefix=0', 'permission_groups=3']]);
+		$this->assertSame(0, $code, $summary);
+
+		$created = json_decode($json, true)['created'];
+		$forums = array_column($created['XF:Node'], 'id');
+		$denied = [];
+		foreach ($created['XF:UserGroup'] AS $group)
+		{
+			$denied[] = array_keys($group['node_permissions'])[0];
+		}
+		sort($denied);
+		sort($forums);
+		$this->assertSame($forums, $denied, 'one group to each forum');
 	}
 
 	private function recordInto(string $batch): CollectingRecorder

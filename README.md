@@ -88,7 +88,7 @@ that is only overridden by another you gave is reported the same way.
 
 `seeder:run` takes the name of a seeder, and runs `Default` without one.
 
-**Anything marked *since 1.0.0b2*, *since 1.0.0b3* or *since 1.0.0b4* is not in the release before that one.** A
+**Anything marked *since 1.0.0b2* or later is not in the release before that one.** A
 run given a parameter the installed version does not have makes everything else, names the parameter as
 ignored and exits 1.
 
@@ -96,7 +96,7 @@ ignored and exits 1.
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
 | `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `changes` *(since 1.0.0b4)* (0; more members who have changed their account, some of it changed by an administrator), `renamed` *(since 1.0.0b4)* (0; more members who have changed their name, some with a later request rejected or awaiting approval), `rejected` *(since 1.0.0b4)* (0; more members whose registration was rejected, by turns by the spam check and by a moderator), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*) |
-| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
+| `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `permission_groups` *(since 1.0.0b5)* (0; user groups each denying its members others' threads in one forum, with the authors spread across them; see *Members*), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
@@ -177,6 +177,16 @@ in an extra group, so they stay in the registered group, and every member of a r
 permissions shares one group. `UserGroupFactory` makes such a group on its own:
 `UserGroupFactory::new()->granting([...])->create()`. A permission the forum does not have is
 refused. To use a group the forum already has, give its id in `secondary_group_ids`.
+
+**A group can have permissions on one forum, too** *(since 1.0.0b5)*:
+`UserGroupFactory::new()->grantingOn($forum, ['forum' => ['viewOthers' => 'deny']])`, as the
+control panel's node permissions write them - `'content_allow'`, `'reset'` or `'deny'` for a flag,
+a number for a limit. Only what XenForo lets a node have is taken. Members of groups with different
+node permissions are in different permission combinations, and per-member filtering of content is
+untestable without several: `permission_groups` on the `Thread` and `Default` seeders makes that
+many groups, each denying its members other members' threads in one of the run's forums, and
+spreads the authors across them. Others' threads rather than the forum, so an author is never
+denied a forum they posted in.
 
 - **Cleaning a group marks every style as changed and empties the forum's cached CSS.** XenForo
   does that whenever a user group is deleted. Groups are therefore left out of the `Sample` seeder.

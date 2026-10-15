@@ -12,6 +12,11 @@ use XF\Service\UpdatePermissionsService;
  * one that is a flag and a number for one that is a limit (-1 is unlimited). A permission the forum
  * does not have is refused.
  *
+ * `grantingOn($forum, [...])` sets the group's permissions for one forum or other node, as the
+ * control panel's node permissions do: `'content_allow'`, `'reset'` or `'deny'` for a flag. Members
+ * of groups with different node permissions are in different permission combinations, which is
+ * what code that filters content per member has to be tested against.
+ *
  * **Deleting a user group marks every style as changed and empties the forum's cached CSS** -
  * XenForo rebuilds its cache of how each group's names are shown. So cleaning a batch with a group
  * in it does that, and groups stay out of `SampleSeeder`, as an HTML widget does.
@@ -23,7 +28,8 @@ class UserGroupFactory extends AbstractFactory
 {
 	protected $entity = 'XF:UserGroup';
 
-	/** @var \WeakMap the permissions each unsaved group is to grant once it has an id */
+	/** @var \WeakMap the permissions each unsaved group is to grant once it has an id:
+	 *                ['global' => [...], 'nodes' => [node id => [...]]] */
 	private static $pending;
 
 	public function definition()
@@ -50,12 +56,48 @@ class UserGroupFactory extends AbstractFactory
 	}
 
 	/**
+	 * Grants these permissions on one forum or other node, as `[permission group => [permission id
+	 * => value]]` - `'content_allow'`, `'reset'` or `'deny'` for a flag, a number for a limit. Only
+	 * the permissions XenForo lets a node have are taken: the `forum` group and `general.viewNode`.
+	 *
+	 * @param \XF\Mvc\Entity\Entity $node a node, or the forum behind one
+	 *
+	 * @return static
+	 */
+	public function grantingOn(Entity $node, array $permissions)
+	{
+		if ($node->structure()->shortName !== 'XF:Node')
+		{
+			$node = $node->Node ?? null;
+		}
+		if (!$node || !$node->node_id)
+		{
+			throw new \InvalidArgumentException('Node permissions need a saved forum or other node');
+		}
+
+		$nodeId = $node->node_id;
+		$permissions = self::checkPermissions($permissions, 'node');
+
+		return $this->state(function (array $attributes) use ($nodeId, $permissions)
+		{
+			$nodes = $attributes['node_permissions'] ?? [];
+			$nodes[$nodeId] = array_replace_recursive($nodes[$nodeId] ?? [], $permissions);
+
+			return ['node_permissions' => $nodes];
+		});
+	}
+
+	/**
 	 * The permissions as XenForo's permission service takes them, or an exception naming what the
 	 * forum does not have or would not take.
+	 *
+	 * @param string|null $contentType `node` for permissions on a node, null for global ones
 	 */
-	public static function checkPermissions(array $permissions): array
+	public static function checkPermissions(array $permissions, ?string $contentType = null): array
 	{
 		$available = \XF::repository('XF:Permission')->getPermissionsGrouped();
+		$handler = $contentType ? \XF::repository('XF:Permission')->getPermissionHandler($contentType) : null;
+		$flags = $contentType ? ['content_allow', 'reset', 'deny'] : ['allow', 'deny'];
 
 		$checked = [];
 		foreach ($permissions AS $groupId => $values)
@@ -72,6 +114,10 @@ class UserGroupFactory extends AbstractFactory
 				{
 					throw new \InvalidArgumentException("This forum has no permission '{$groupId}.{$permissionId}'");
 				}
+				if ($handler && !$handler->isValidPermission($permission))
+				{
+					throw new \InvalidArgumentException("'{$groupId}.{$permissionId}' is not a permission a {$contentType} can have");
+				}
 
 				if ($permission->permission_type === 'integer')
 				{
@@ -83,9 +129,10 @@ class UserGroupFactory extends AbstractFactory
 				}
 				else
 				{
-					if (!in_array($value, ['allow', 'deny'], true))
+					if (!in_array($value, $flags, true))
 					{
-						throw new \InvalidArgumentException("'{$groupId}.{$permissionId}' takes 'allow' or 'deny'");
+						throw new \InvalidArgumentException("'{$groupId}.{$permissionId}' takes '" . implode("', '", array_slice($flags, 0, -1))
+							. "' or '" . end($flags) . "'" . ($contentType ? " on a {$contentType}" : ''));
 					}
 					$checked[$groupId][$permissionId] = $value;
 				}
@@ -129,18 +176,31 @@ class UserGroupFactory extends AbstractFactory
 				$entry['permission_value'] === 'use_int' ? (int) $entry['permission_value_int'] : $entry['permission_value'];
 		}
 
-		return ['title' => $entity->title, 'permissions' => $granted];
+		$described = ['title' => $entity->title, 'permissions' => $granted];
+
+		foreach (\XF::db()->fetchAll('
+			SELECT content_id, permission_group_id, permission_id, permission_value, permission_value_int
+			FROM xf_permission_entry_content
+			WHERE user_group_id = ? AND user_id = 0 AND content_type = \'node\'
+			ORDER BY content_id, permission_group_id, permission_id
+		', $entity->user_group_id) AS $entry)
+		{
+			$described['node_permissions'][$entry['content_id']][$entry['permission_group_id'] . '.' . $entry['permission_id']] =
+				$entry['permission_value'] === 'use_int' ? (int) $entry['permission_value_int'] : $entry['permission_value'];
+		}
+
+		return $described;
 	}
 
 	protected function newEntity(array $attributes): Entity
 	{
-		$permissions = $attributes['permissions'] ?? [];
-		unset($attributes['permissions']);
+		$pending = ['global' => $attributes['permissions'] ?? [], 'nodes' => $attributes['node_permissions'] ?? []];
+		unset($attributes['permissions'], $attributes['node_permissions']);
 
 		$group = parent::newEntity($attributes);
 
 		self::$pending = self::$pending ?? new \WeakMap();
-		self::$pending[$group] = $permissions;
+		self::$pending[$group] = $pending;
 
 		return $group;
 	}
@@ -149,8 +209,8 @@ class UserGroupFactory extends AbstractFactory
 	{
 		$entity->save();
 
-		$permissions = self::$pending[$entity] ?? [];
-		if (!$permissions)
+		$pending = self::$pending[$entity] ?? ['global' => [], 'nodes' => []];
+		if (!$pending['global'] && !$pending['nodes'])
 		{
 			return;
 		}
@@ -159,10 +219,20 @@ class UserGroupFactory extends AbstractFactory
 		{
 			// a new group is in no member's permission combination yet, so nothing is rebuilt here:
 			// each member's is built as they join it
-			\XF::service(UpdatePermissionsService::class)
-				->setUserGroup($entity)
-				->setGlobal()
-				->updatePermissions($permissions);
+			if ($pending['global'])
+			{
+				\XF::service(UpdatePermissionsService::class)
+					->setUserGroup($entity)
+					->setGlobal()
+					->updatePermissions($pending['global']);
+			}
+			foreach ($pending['nodes'] AS $nodeId => $permissions)
+			{
+				\XF::service(UpdatePermissionsService::class)
+					->setUserGroup($entity)
+					->setContent('node', $nodeId)
+					->updatePermissions($permissions);
+			}
 		}
 		catch (\Throwable $e)
 		{

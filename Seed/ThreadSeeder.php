@@ -6,6 +6,7 @@ use Hampel\Seeder\Factory\PrefixFactory;
 use Hampel\Seeder\Factory\ReactionFactory;
 use Hampel\Seeder\Factory\ThreadFactory;
 use Hampel\Seeder\Factory\UserFactory;
+use Hampel\Seeder\Factory\UserGroupFactory;
 use XF\Repository\TagRepository;
 
 /**
@@ -37,6 +38,10 @@ use XF\Repository\TagRepository;
  *               one in six of each; 0 for everything visible (0)
  *     ips       1 to log the address of every thread and reply, and give each author made here
  *               an IP log, from addresses some of them share (0)
+ *     permission_groups  how many user groups to make, each denying its members other members'
+ *               threads in one of the forums, by turns; the authors are spread across them, so
+ *               there are as many permission combinations as groups, up to the number of authors.
+ *               Deleting a group at clean-up empties the forum's cached CSS (0)
  *
  * A seeder that calls this one may pass `author_pool` and `forum_pool`, collections of existing
  * members and forum nodes, in place of authors and forum.
@@ -50,6 +55,8 @@ class ThreadSeeder extends AbstractSeeder
 		$forums = $this->param('forum_pool') ?? [$this->forum()];
 		$authors = $this->param('author_pool')
 			?? ($ips ? UserFactory::new()->withIpLog() : UserFactory::new())->count($this->count('authors', 5))->create();
+
+		$this->permissionGroups($forums, $authors, $this->count('permission_groups', 0));
 
 		$prefix = null;
 		if ($this->count('prefix', 1))
@@ -186,6 +193,43 @@ class ThreadSeeder extends AbstractSeeder
 		}
 
 		$threads->has($replies)->create();
+	}
+
+	/**
+	 * Groups that each deny their members other members' threads in one forum, and the authors
+	 * spread across them. Others' threads and not the forum, so no author is denied a forum they go
+	 * on to post in, and each still sees their own threads.
+	 */
+	/**
+	 * @param iterable $forums  the run's forum nodes, a list or a collection
+	 * @param iterable $authors the run's authors
+	 */
+	private function permissionGroups($forums, $authors, int $groups): void
+	{
+		if ($groups < 1)
+		{
+			return;
+		}
+		$forums = is_array($forums) ? array_values($forums) : array_values($forums->toArray());
+
+		$made = [];
+		for ($i = 0; $i < $groups; $i++)
+		{
+			$made[] = UserGroupFactory::new()
+				->grantingOn($forums[$i % count($forums)], ['forum' => ['viewOthers' => 'deny']])
+				->create();
+		}
+
+		$i = 0;
+		foreach ($authors AS $author)
+		{
+			$groupIds = $author->secondary_group_ids;
+			$groupIds[] = $made[$i++ % $groups]->user_group_id;
+			$author->secondary_group_ids = array_values(array_unique($groupIds));
+			// XenForo builds the member's new permission combination as they are saved
+			UserFactory::silence($author);
+			$author->save();
+		}
 	}
 
 	/**

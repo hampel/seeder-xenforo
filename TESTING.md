@@ -68,7 +68,7 @@ needs a person.
   writes the permission entries. Removed by XenForo's member clean-up. A seeded administrator can
   sign in to the admin control panel.
 - **User groups and permissions** — the `UserGroup` entity, then XenForo's permission service,
-  which writes the group's permission entries. A member given permissions joins the group before
+  which writes the group's permission entries, global and on a node. A member given permissions joins the group before
   being saved, so XenForo builds their permission combination with it. Deleting a group is
   XenForo's own: its entries go, the style cache is marked changed and the CSS cache emptied, and
   a job removes every permission combination no member has. Not in the sample, for the CSS cache.
@@ -363,6 +363,14 @@ at it, a post not asked for has none, and nothing is logged against a thread; cl
 row, including those for posts by a member the batch did not make; both seeders write them only
 when asked.
 
+For node permissions: a group's entries on a forum are written as the control panel writes them,
+flags and limits, and none globally; a permission no node can have, a global flag value, an
+unknown permission and an unsaved node are each refused; members of groups with different node
+permissions hold them and are in different combinations, a member in no group keeps the forum's
+own once XenForo's rebuild has run; cleaning removes the entries with the group; the Thread seeder
+puts every author in a group and gives as many combinations as groups, an author still sees their
+own thread, and through `Default` each group is denied a different forum.
+
 For user agents: the robot `robotFor()` names agrees with XenForo's own check on crawlers,
 browsers and a command-line client; crawlers are all robots to the forum, Google's commonest; one
 can be asked for by robot, and an unknown robot is refused; a browser is never a robot.
@@ -480,6 +488,9 @@ asserts that creating a member leaves the table as it was.
   and on 2026-10-15 in the same sandbox a member's change log tab and the username change log
   were fetched over HTTP: 200, rows present, no error. Nobody has looked at them or at the
   approval queue in a browser, or approved or rejected the seeded request there.
+- **Seeded node permissions in the admin control panel.** Each member's view of each seeded
+  thread was checked through XenForo's own `canView()` on the development forum; nobody has looked
+  at a forum's permissions page or browsed as such a member.
 - **A seeded IP log in the admin control panel.** Read back on the development forum, and on
   2026-10-15 in the same sandbox a member's IP list (on one address, and on three) and the member
   list for an address two members share were fetched over HTTP: 200, rows present, no error. An
