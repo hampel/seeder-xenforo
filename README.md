@@ -185,8 +185,10 @@ a number for a limit. Only what XenForo lets a node have is taken. Members of gr
 node permissions are in different permission combinations, and per-member filtering of content is
 untestable without several: `permission_groups` on the `Thread` and `Default` seeders makes that
 many groups, each denying its members other members' threads in one of the run's forums, and
-spreads the authors across them. Others' threads rather than the forum, so an author is never
-denied a forum they posted in.
+spreads the authors across them. **Through `Default`, every member it makes is an author**, so
+every one of them is in a group - which is what a check on who receives or sees content needs.
+Through `Thread` alone, only the authors it makes are. Others' threads rather than the forum, so an
+author is never denied a forum they posted in.
 
 - **Cleaning a group marks every style as changed and empties the forum's cached CSS.** XenForo
   does that whenever a user group is deleted. Groups are therefore left out of the `Sample` seeder.
