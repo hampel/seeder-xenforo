@@ -100,12 +100,6 @@ class ResourceSeeder extends AbstractSeeder
 			return ForumFactory::new()->create(['title' => 'Resource discussions']);
 		}
 
-		$forum = \XF::em()->find('XF:Forum', $nodeId);
-		if (!$forum)
-		{
-			throw new \InvalidArgumentException("The 'forum' parameter must be the node id of a forum; there is none with id '{$nodeId}'");
-		}
-
-		return $forum;
+		return $this->existingForum($nodeId);
 	}
 }

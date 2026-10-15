@@ -46,9 +46,10 @@ class ThreadSeeder extends AbstractSeeder
 	public function run()
 	{
 		$ips = (bool) $this->count('ips', 0);
+		// the forum first: one named that is not a forum stops the run before anything is made
+		$forums = $this->param('forum_pool') ?? [$this->forum()];
 		$authors = $this->param('author_pool')
 			?? ($ips ? UserFactory::new()->withIpLog() : UserFactory::new())->count($this->count('authors', 5))->create();
-		$forums = $this->param('forum_pool') ?? [$this->forum()];
 
 		$prefix = null;
 		if ($this->count('prefix', 1))
@@ -220,12 +221,6 @@ class ThreadSeeder extends AbstractSeeder
 			return ($type === 'discussion' && $this->count('polls', 0) ? $forum->allowing('poll') : $forum)->create();
 		}
 
-		$forum = \XF::em()->find('XF:Forum', $nodeId);
-		if (!$forum)
-		{
-			throw new \InvalidArgumentException("The 'forum' parameter must be the node id of a forum; there is none with id '{$nodeId}'");
-		}
-
-		return $forum->Node;
+		return $this->existingForum($nodeId)->Node;
 	}
 }

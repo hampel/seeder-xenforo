@@ -464,6 +464,26 @@ class ContentTest extends TestCase
 		$this->assertNoExceptionsLogged();
 	}
 
+	public function test_the_thread_seeder_makes_nothing_when_the_node_named_is_not_a_forum()
+	{
+		$this->fakesErrors();
+		$category = $this->app()->db()->fetchOne("SELECT node_id FROM xf_node WHERE node_type_id = 'Category' LIMIT 1");
+		if (!$category)
+		{
+			$this->markTestSkipped('This forum has no category node');
+		}
+		$users = (int) $this->app()->db()->fetchOne('SELECT COUNT(*) FROM xf_user');
+
+		// the authors are left at their default, so a run that made them first would leave five
+		[$code, , $summary] = $this->run_(['seeder' => 'Thread', '--batch' => 'test-not-a-forum', '--param' => ['forum=' . $category]]);
+
+		$this->assertSame(1, $code);
+		$this->assertStringContainsString("node {$category} is a Category, not a forum", $summary);
+		$this->assertSame($users, (int) $this->app()->db()->fetchOne('SELECT COUNT(*) FROM xf_user'), 'no member was made');
+		$this->assertDatabaseMissing(self::RECORDS, ['batch' => 'test-not-a-forum']);
+		$this->assertNoExceptionsLogged();
+	}
+
 	private function question(): Entity
 	{
 		return $this->createEntity('XF:CaptchaQuestion', ['question' => 'Seeder test ' . bin2hex(random_bytes(6)), 'answers' => ['yes']]);

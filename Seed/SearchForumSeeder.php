@@ -31,12 +31,7 @@ class SearchForumSeeder extends AbstractSeeder
 			}
 			else
 			{
-				$forum = \XF::em()->find('XF:Forum', $nodeId);
-				if (!$forum)
-				{
-					throw new \InvalidArgumentException("The 'forum' parameter must be the node id of a forum; there is none with id '{$nodeId}'");
-				}
-				$forums = [$forum->Node];
+				$forums = [$this->existingForum($nodeId)->Node];
 			}
 		}
 

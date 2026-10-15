@@ -98,4 +98,27 @@ abstract class AbstractSeeder
 	{
 		return Context::current();
 	}
+
+	/**
+	 * The forum a `forum` parameter names, or an exception saying what the node is instead.
+	 *
+	 * @param mixed $nodeId
+	 */
+	protected function existingForum($nodeId): \XF\Entity\Forum
+	{
+		$forum = \XF::em()->find('XF:Forum', $nodeId);
+		if ($forum)
+		{
+			return $forum;
+		}
+
+		$node = \XF::em()->find('XF:Node', $nodeId);
+		if (!$node)
+		{
+			throw new \InvalidArgumentException("The 'forum' parameter must be the node id of a forum; there is no node {$nodeId}");
+		}
+
+		throw new \InvalidArgumentException("The 'forum' parameter must be the node id of a forum; node {$nodeId} is "
+			. ($node->node_type_id === 'Forum' ? 'a forum node with no forum record behind it' : "a {$node->node_type_id}, not a forum"));
+	}
 }

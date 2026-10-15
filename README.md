@@ -125,6 +125,13 @@ php cmd.php seeder:run Thread -p threads=12 -p forum=2
 `Hampel\Seeder\Factory\UserFactory` builds a member with the forum's own registration defaults,
 an address at a reserved domain, and the run's shared password.
 
+**A seeded member's preferences are the forum's registration defaults**, as a new member's are:
+*Default registration values* under *Options > User registration* in the admin control panel
+(`registrationDefaults`). XenForo ships `receive_admin_email` off there, so no seeded member
+receives email from administrators unless asked, and code that selects members by it - a mailing
+list, a digest - finds none until one is set with `state(['Option.receive_admin_email' => true])`.
+Look there first when seeded members are missing from something filtered by a preference.
+
 ```php
 UserFactory::new()
 	->count(200)
