@@ -94,7 +94,7 @@ ignored and exits 1.
 
 | seeder | creates | parameters |
 |---|---|---|
-| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), and those of `Thread` |
+| `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), `categories` *(since 1.0.0b6)* (0; puts the forums inside that many categories, by turns), `subforums` *(since 1.0.0b6)* (0; gives each forum between one and that many forums inside it, with threads), and those of `Thread` |
 | `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `changes` *(since 1.0.0b4)* (0; more members who have changed their account, some of it changed by an administrator), `renamed` *(since 1.0.0b4)* (0; more members who have changed their name, some with a later request rejected or awaiting approval), `rejected` *(since 1.0.0b4)* (0; more members whose registration was rejected, by turns by the spam check and by a moderator), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `permission_groups` *(since 1.0.0b5)* (0; user groups each denying its members others' threads in one forum, with the authors spread across them; see *Members*), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
@@ -260,8 +260,9 @@ ThreadFactory::new()
 
 | factory | builds | states |
 |---|---|---|
-| `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()`, `allowing(...$threadTypes)`, all *(since 1.0.0b2)* |
-| `SearchForumFactory` *(since 1.0.0b2)* | a search forum; the entity returned is its node | `searching($forums)` |
+| `CategoryFactory` *(since 1.0.0b6)* | a category; the entity returned is its node | `in($parent)` |
+| `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()`, `allowing(...$threadTypes)`, all *(since 1.0.0b2)*; `in($parent)` *(since 1.0.0b6)* |
+| `SearchForumFactory` *(since 1.0.0b2)* | a search forum; the entity returned is its node | `searching($forums)`, `in($parent)` *(since 1.0.0b6)* |
 | `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])`, `withPoll($choices, $votes)` *(since 1.0.0b2)*, `withIp()` *(since 1.0.0b4)* |
 | `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)`, `withIp()` *(since 1.0.0b4)* |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
@@ -269,6 +270,14 @@ ThreadFactory::new()
 
 The `with...()` states add up: `->withQuote()->withList()` gives a first post with both. Set
 `message` to supply the BB code yourself, and `post_date` to fix the date.
+
+**Forums can go inside categories and inside each other** *(since 1.0.0b6)*:
+`ForumFactory::new()->in($category)` and `->in($forum)` for a sub-forum, where the parent is any
+node, or the category or forum row behind one. Each node is placed in XenForo's tree as soon as it
+is saved, so a run can make a category and the forums in it, and the forums inside those, one
+after another. Cleaning removes them deepest first. A forum the run did not make that someone put
+inside a seeded category is moved up to the category's parent, as XenForo does when a category is
+deleted.
 
 **Threads and replies are written through XenForo's own thread creator and replier**, so a message
 is prepared as a posted one is. Their notifications are never sent, nobody is alerted, and no

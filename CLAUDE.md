@@ -121,6 +121,15 @@ So moving the clock is not enough for a row whose date is a default. **For every
 factory's save writes, read the date back and compare it** - and where it is a default, set it
 by hand afterwards, as `WritesPosts::finish()`, `attach()` and `ReactionFactory::store()` do.
 
+## A node is placed in the tree when it is saved
+
+**XenForo works out a node's place in the tree - `lft`, `rgt`, depth - at the end of the request**,
+through `\XF::runOnce('rebuildTree-XF:Node')`. Until then a new node has none, and XenForo rejects
+any node given it as a parent with "Please select a valid parent". `BuildsNodes::placeInTree()`
+runs the rebuild after each node is saved and gives the saved entity its place. Any node factory
+that overrides `store()` must call it, as `SearchForumFactory` does. Found on 2026-10-17 by an add-on
+that made a category and then the forums in it.
+
 ## Dates on posts are forced in after validation
 
 XenForo's thread creator and replier stamp `time()` during `validate()`, and validation readies the

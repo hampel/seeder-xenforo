@@ -76,6 +76,7 @@ class SearchForumFactory extends AbstractFactory
 	protected function store(Entity $entity): void
 	{
 		$entity->save();
+		$this->placeInTree($entity);
 
 		// XenForo leaves this until the end of the request; a run goes on to use the result
 		\XF::repository(SearchForumRepository::class)->rebuildThreadsForSearchForum($entity->getData());

@@ -69,6 +69,10 @@ class ForumFactory extends AbstractFactory
 	public static function describe(Entity $entity): array
 	{
 		$described = ['title' => $entity->title];
+		if ($entity->parent_node_id)
+		{
+			$described['parent_node_id'] = $entity->parent_node_id;
+		}
 
 		$forum = $entity->getData();
 		if ($forum && $forum->forum_type_id !== 'discussion')

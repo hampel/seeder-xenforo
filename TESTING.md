@@ -72,6 +72,9 @@ needs a person.
   being saved, so XenForo builds their permission combination with it. Deleting a group is
   XenForo's own: its entries go, the style cache is marked changed and the CSS cache emptied, and
   a job removes every permission combination no member has. Not in the sample, for the CSS cache.
+- **Categories and the node tree** — the `Node` entity with its `Category` or `Forum` row, then
+  XenForo's deferred tree rebuild run at once so the next node can go inside it. Removal is the
+  node's own deletion, deepest first.
 - **The moderator log** — rows inserted one at a time with `insert()`, never the entity or
   XenForo's logger, each id recorded as the insert gave it, and removed by id. Two add-ons on a
   forum can react to a moderator action as it is taken, by extending the logger or on the entity's
@@ -362,6 +365,15 @@ chance cannot pass it; a thread's first post and each reply have a row dated wit
 at it, a post not asked for has none, and nothing is logged against a thread; cleaning takes every
 row, including those for posts by a member the batch did not make; both seeders write them only
 when asked.
+
+For the node tree: a category, a forum in it and a forum in that are made in one run, with
+parents, depths and nested positions as the tree has them, both in the database and on the
+entities the run goes on to use; threads go into a sub-forum, a guest sees them once XenForo's
+rebuild has run, and a search forum goes into a category; `in()` takes a category's row for its
+node and refuses an unsaved one; cleaning removes the tree and moves up a forum the run did not
+make; `Default` puts every forum in a category, uses each category, gives each forum one or two
+sub-forums and puts threads in them. Without the placement every nested node is refused with
+XenForo's own "Please select a valid parent".
 
 For node permissions: a group's entries on a forum are written as the control panel writes them,
 flags and limits, and none globally; a permission no node can have, a global flag value, an

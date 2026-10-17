@@ -4,7 +4,8 @@
  * A little of everything this add-on can create, and no more than it takes to have one of each:
  * members, a forum, threads whose first posts cover the range of BB code, replies, a prefix,
  * attachments, tags, reactions, a featured thread, a sticky thread, a thread with a poll and
- * votes, content awaiting approval and content soft-deleted, a forum of each other type with threads of that type, search forums, conversations,
+ * votes, content awaiting approval and content soft-deleted, a forum of each other type with threads of that type, a category
+ * with a forum in it and a sub-forum in that, search forums, conversations,
  * members with other ways into their accounts and members active without posting, members banned
  * and members whose mail bounced, an administrator with no permissions,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
@@ -27,6 +28,8 @@ class SampleSeeder extends AbstractSeeder
 		{
 			$this->call(ThreadSeeder::class, ['threads' => 2, 'replies' => 2, 'authors' => 2, 'prefix' => 0, 'forum_type' => $type]);
 		}
+		// a category, a forum in it and a forum inside that, so a tree is made and cleaned
+		$this->call(DefaultSeeder::class, ['users' => 2, 'forums' => 1, 'categories' => 1, 'subforums' => 1, 'threads' => 2, 'replies' => 1, 'prefix' => 0]);
 		$this->call(SearchForumSeeder::class, ['search_forums' => 2, 'threads' => 3, 'replies' => 1, 'authors' => 2, 'prefix' => 0]);
 		$this->call(ConversationSeeder::class, ['conversations' => 2, 'messages' => 4, 'members' => 3]);
 		$this->call(UserSeeder::class, ['users' => 0, 'access' => 5, 'active' => 2, 'moderated' => 2, 'passwordless' => 1, 'no_auth' => 1, 'banned' => 2, 'bouncing' => 1, 'admins' => 1, 'changes' => 1, 'renamed' => 3, 'rejected' => 2, 'ips' => 1]);

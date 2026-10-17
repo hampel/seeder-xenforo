@@ -31,8 +31,12 @@ First release.
 - members can have a history: changes to their account in XenForo's change log, by themselves and
   by an administrator; earlier names, with a later request awaiting approval or rejected; and a
   registration rejected by the spam check or by a moderator
+- categories, and forums inside categories and inside other forums, made in one run; the
+  `Default` seeder can build a tree of them
 - user groups can have permissions on a forum, and the thread seeders can spread their authors
   across groups that do, so members fall into several permission combinations
+- a node made in a run can now be the parent of another; a forum given a parent made earlier in
+  the same run was refused with "Please select a valid parent"
 - a `forum` parameter naming a node that is not a forum stops the run before anything is made,
   and says what the node is
 - moderator log entries about members' threads, replies and accounts, in XenForo's own words,

@@ -305,7 +305,7 @@ Each phase ends with something that runs.
    media comments 2026-10-13; widgets, administrators and the admin log the same day; user groups,
    members holding permissions and crawler user agents 2026-10-14; IP logs for members, threads
    and replies 2026-10-15; the change log, username changes, rejected registrations and the
-   moderator log the same day; node permissions in the 1.0.0b5 cycle, the same day. Profile posts are what is left.*
+   moderator log the same day; node permissions in the 1.0.0b5 cycle, the same day; categories and forum trees in the 1.0.0b6 cycle, 2026-10-17. Profile posts are what is left.*
 
 ### The no-trace test is the acceptance test
 
