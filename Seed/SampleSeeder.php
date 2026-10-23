@@ -7,7 +7,8 @@
  * votes, content awaiting approval and content soft-deleted, a forum of each other type with threads of that type, a category
  * with a forum in it and a sub-forum in that, search forums, conversations,
  * members with other ways into their accounts and members active without posting, members banned
- * and members whose mail bounced, an administrator with no permissions,
+ * and members whose mail bounced, an administrator with no permissions, profile posts, status
+ * updates and comments on them,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
  * warnings, API keys and widgets - and, where the forum has Resource Manager or Media Gallery, resources -
  * rated, reviewed, one of them featured and each with a discussion thread - and media items
@@ -33,6 +34,7 @@ class SampleSeeder extends AbstractSeeder
 		$this->call(SearchForumSeeder::class, ['search_forums' => 2, 'threads' => 3, 'replies' => 1, 'authors' => 2, 'prefix' => 0]);
 		$this->call(ConversationSeeder::class, ['conversations' => 2, 'messages' => 4, 'members' => 3]);
 		$this->call(UserSeeder::class, ['users' => 0, 'access' => 5, 'active' => 2, 'moderated' => 2, 'passwordless' => 1, 'no_auth' => 1, 'banned' => 2, 'bouncing' => 1, 'admins' => 1, 'changes' => 1, 'renamed' => 3, 'rejected' => 2, 'ips' => 1]);
+		$this->call(ProfilePostSeeder::class, ['posts' => 2, 'statuses' => 1, 'comments' => 2, 'members' => 2]);
 		$this->call(UserFieldSeeder::class, ['fields' => 4, 'members' => 3]);
 		$this->call(UserUpgradeSeeder::class, ['upgrades' => 1, 'purchasable' => 1, 'members' => 3, 'active' => 2, 'expired' => 2]);
 		// content that belongs to another add-on, where the forum has it

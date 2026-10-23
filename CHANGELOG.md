@@ -46,6 +46,9 @@ First release.
 - failed jobs, with recurring faults and one-offs thrown from XenForo, add-ons, their libraries
   and outside the forum, some quoting a made-up credential; and jobs waiting in the queue, by hand
   or retrying, that will never run
+- profile posts between members, status updates and comments on them, none of which alerts
+  anyone
+- every member given to a poll can be made to vote, for a check that needs to know who voted
 - moderator log entries about members' threads, replies and accounts, in XenForo's own words,
   written so that nothing that reacts to a moderator action sees them
 - members can have an IP log - registering, logins, logins to the admin control panel and changes

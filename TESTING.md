@@ -31,6 +31,9 @@ needs a person.
 - **Conversations** — through XenForo's `Conversation\CreatorService` and `ReplierService`, with
   notifications never sent. XenForo has no delete for a single message, so the factory removes one
   and corrects the conversation's counts and last message itself.
+- **Profile posts** — through XenForo's `ProfilePost\CreatorService` and
+  `ProfilePostComment\CreatorService` with the author as the visitor, notifications never sent and
+  no address logged. The date is forced in after validation, which stamps the real time.
 - **Custom user fields** — the field through its entity, with its phrases; values through the
   member's profile as an administrator sets them. XenForo keeps its list of fields for the life of
   the process and rebuilds it at the end of the request, so the factory forces both.
@@ -248,6 +251,14 @@ in the same second; nobody is alerted, mailed or has an address logged; cleaning
 counts and the members' unread totals; removing one reply leaves the conversation pointing at the
 one before.
 
+For profile posts: one member's post on another's profile carries both, is visible, within the
+length limit and in the news feed, with its webhook off and nobody alerted, mailed or with an
+address logged; comments by other members and the owner count on the profile post, with its first
+and last comment dates and latest comments right, and alert nobody; a status update is by the
+profile's owner, and without `status()` a post drawn from recycled members never is; cleaning
+restores the profile post, comment, news feed, alert, approval queue and deletion log tables; the
+seeder makes the posts, statuses and members asked for.
+
 For fields and upgrades: a field has its phrases and choices and is known to the forum at once;
 every kind of field takes a made-up value; an unknown field, an unknown choice and a rejected
 value are refused; values go with the member or the field. An upgrade is not for sale; one held
@@ -296,12 +307,12 @@ searches and no others, with results dated when it was made; cleaning one leaves
 row, no results and no member's own results; the seeders give each of several forums threads in
 turn.
 
-For polls and sticky threads: a thread with a poll is a poll thread with its choices and no
-votes; votes come from the members given, one each, dated after the thread, and the poll's totals
-and cached results agree with the rows; a forum takes the thread types it is told to and a new
-one takes none; a poll is refused in a forum that does not take them and with fewer than two
-choices; cleaning leaves no poll, choice or vote; the seeders make the sticky threads and polls
-asked for, and give polls only to forums that take them.
+For polls and sticky threads: a thread with a poll is a poll thread with its choices and no votes;
+votes come from the members given, one each, dated after the thread, and the poll's totals and
+cached results agree with the rows; with `votedByAll()` every one of them votes; a forum takes the
+thread types it is told to and a new one takes none; a poll is refused in a forum that does not
+take them and with fewer than two choices; cleaning leaves no poll, choice or vote; the seeders
+make the sticky threads and polls asked for, and give polls only to forums that take them.
 
 For widgets: a widget has its title phrase, its position and a compiled file, and no template;
 an HTML widget has a template of its own holding its markup; a widget can be of another

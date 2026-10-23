@@ -22,6 +22,7 @@ use XF\Service\Thread\TypeData\PollCreatorService;
  *     featured        true to feature it - see featured()
  *     poll            how many choices its poll has, 0 for no poll - see withPoll()
  *     poll_votes      the most members who vote in the poll
+ *     poll_every      true for every member given to recycle() to vote - see votedByAll()
  *     log_ip          true to log the first post's address - see withIp()
  */
 class ThreadFactory extends AbstractFactory
@@ -44,6 +45,7 @@ class ThreadFactory extends AbstractFactory
 			'attachments' => 0,
 			'poll' => 0,
 			'poll_votes' => 0,
+			'poll_every' => false,
 			'deleted' => false,
 			'delete_reason' => '',
 			'deleted_by' => null,
@@ -182,6 +184,18 @@ class ThreadFactory extends AbstractFactory
 	}
 
 	/**
+	 * Every member given to recycle() votes in the poll, each for one choice, rather than a
+	 * random number of them up to withPoll()'s `$votes` - for a check that needs to know who
+	 * voted. Has no effect without withPoll().
+	 *
+	 * @return static
+	 */
+	public function votedByAll()
+	{
+		return $this->state(['poll_every' => true]);
+	}
+
+	/**
 	 * @param int|Entity|PrefixFactory|null $prefix an existing prefix, or a new one if omitted
 	 *
 	 * @return static
@@ -278,7 +292,7 @@ class ThreadFactory extends AbstractFactory
 
 		$own = array_diff_key($attributes, array_flip(
 			['node_id', 'user_id', 'title', 'message', 'message_parts', 'tags', 'attachments', 'post_date',
-				'deleted', 'delete_reason', 'deleted_by', 'featured', 'poll', 'poll_votes', 'log_ip']
+				'deleted', 'delete_reason', 'deleted_by', 'featured', 'poll', 'poll_votes', 'poll_every', 'log_ip']
 		));
 		$this->fill($thread, $own);
 
@@ -295,6 +309,7 @@ class ThreadFactory extends AbstractFactory
 			'deleted_by' => $attributes['deleted_by'],
 			'featured' => !empty($attributes['featured']),
 			'poll_votes' => $choices ? (int) $attributes['poll_votes'] : 0,
+			'poll_every' => $choices && !empty($attributes['poll_every']),
 			'log_ip' => !empty($attributes['log_ip']),
 		]);
 
@@ -380,7 +395,7 @@ class ThreadFactory extends AbstractFactory
 	protected function vote(Entity $thread, array $pending): void
 	{
 		$voters = $this->recycled['XF:User'] ?? [];
-		$wanted = min($pending['poll_votes'], count($voters));
+		$wanted = $pending['poll_every'] ? count($voters) : min($pending['poll_votes'], count($voters));
 		$poll = $wanted ? \XF::em()->findOne('XF:Poll', ['content_type' => 'thread', 'content_id' => $thread->thread_id]) : null;
 		if (!$poll)
 		{
@@ -391,7 +406,7 @@ class ThreadFactory extends AbstractFactory
 		$timeline = $this->context()->timeline;
 
 		shuffle($voters);
-		foreach (array_slice($voters, 0, mt_rand(1, $wanted)) AS $voter)
+		foreach (array_slice($voters, 0, $pending['poll_every'] ? $wanted : mt_rand(1, $wanted)) AS $voter)
 		{
 			\XF::db()->insert('xf_poll_vote', [
 				'user_id' => $voter->user_id,

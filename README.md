@@ -12,11 +12,10 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 approval, unconfirmed, rejected, banned, bouncing, administrators, holding permissions, with a
 history of changes and of names - forums, threads with replies, tags,
 reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
-approval or soft-deleted, forums of each type, search forums, conversations, custom user fields with members' values, user upgrades held and run out, warning
+approval or soft-deleted, forums of each type, search forums, conversations, profile posts and status updates with comments, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, widgets, who is online, server error log entries, admin log
 entries, moderator log entries and IP logs - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
-XenForo Media Gallery media items with comments - and removes them again. Profile posts are not
-built yet.
+XenForo Media Gallery media items with comments - and removes them again.
 
 Two things to know while it is one:
 
@@ -99,6 +98,7 @@ ignored and exits 1.
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `permission_groups` *(since 1.0.0b5)* (0; user groups each denying its members others' threads in one forum, with the authors spread across them; see *Members*), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
+| `ProfilePost` *(since 1.0.0b9)* | profile posts between members, status updates, and comments on both | `posts` (8; each by one member on another's profile), `statuses` (3; each a member's post on their own profile), `comments` (2; the most on each), `members` (4; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
 | `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*), `purchasable` *(since 1.0.0b7)* (0; how many of the upgrades made are offered for sale, though none can be bought) |
 | `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3), `reviews` (0; ratings with a written review, for each resource), `ratings` (0; ratings with nothing written, for each resource), `featured` (0; how many of the resources are featured), `discussions` *(since 1.0.0b2)* (0; 1 gives each resource a discussion thread, in a forum made for them), `forum` *(since 1.0.0b2)* (an existing forum's node id for those threads) |
@@ -264,7 +264,7 @@ ThreadFactory::new()
 | `CategoryFactory` *(since 1.0.0b6)* | a category; the entity returned is its node | `in($parent)` |
 | `ForumFactory` | a forum; the entity returned is its node | `type($id)`, `article()`, `question()`, `suggestion()`, `allowing(...$threadTypes)`, all *(since 1.0.0b2)*; `in($parent)` *(since 1.0.0b6)* |
 | `SearchForumFactory` *(since 1.0.0b2)* | a search forum; the entity returned is its node | `searching($forums)`, `in($parent)` *(since 1.0.0b6)* |
-| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])`, `withPoll($choices, $votes)` *(since 1.0.0b2)*, `withIp()` *(since 1.0.0b4)* |
+| `ThreadFactory` | a thread and its first post | `locked()`, `sticky()`, `featured()`, `moderated()`, `deleted($reason, $by)`, `long()`, `withQuote()`, `withList()`, `withImage()`, `withLinks()`, `withFormatting()`, `withAttachment(n)`, `withPrefix($prefix)`, `withTags([...])`, `withPoll($choices, $votes)` *(since 1.0.0b2)*, `votedByAll()` *(since 1.0.0b9)*, `withIp()` *(since 1.0.0b4)* |
 | `PostFactory` | a reply | `moderated()`, `deleted($reason, $by)`, `withQuote()`, `withAttachment(n)`, `withIp()` *(since 1.0.0b4)* |
 | `ReactionFactory` | a member's reaction, by default to a post | `for($post)` or `for($thread)`, `reaction($id)` |
 | `PrefixFactory` | a thread prefix; `node_ids` lists the forums that offer it | |
@@ -314,6 +314,11 @@ SearchForumFactory::new()->searching($questions)->create(['sort_order' => 'title
 choices, one vote a member, results anyone may see. Up to six of the members given to
 `recycle()` vote, and with nobody recycled the poll has no votes. A vote is written as a row and
 the poll's totals rebuilt, since XenForo's own voting queues a webhook.
+
+**`votedByAll()` has every recycled member vote** *(since 1.0.0b9)*, rather than a random number
+of them up to `$votes`, for a check that needs to know exactly who voted:
+`->recycle($voters)->withPoll(4)->votedByAll()`. Set the thread's `user_id` if its author should
+not be one of them.
 
 **A forum has to take poll threads, and a new forum does not.** XenForo's *Allowed thread types*
 setting starts empty, and a seeded forum is the same. A forum that `ThreadFactory` makes for a
@@ -383,6 +388,43 @@ batch is cleaned. Members made by `UserFactory` have an address at a reserved do
 
 ```bash
 php cmd.php seeder:run Conversation -p conversations=5 -p messages=10
+```
+
+### Profile posts
+
+*Since 1.0.0b9.*
+
+```php
+ProfilePostFactory::new()->on($owner)->create(['user_id' => $author->user_id]);   // on another's profile
+ProfilePostFactory::new()->on($member)->status()->create();                       // a status update
+
+ProfilePostFactory::new()
+    ->recycle($members)
+    ->withComments([0, 3])                       // each with up to three comments
+    ->count(10)
+    ->create();
+
+ProfilePostCommentFactory::new()->for($profilePost)->create(['user_id' => $member->user_id]);
+```
+
+| factory | creates | states |
+|---|---|---|
+| `ProfilePostFactory` | a message on a member's profile | `on($member)`, `status()`, `withComments(n)` |
+| `ProfilePostCommentFactory` | a comment on a profile post | |
+
+**Written through XenForo's own profile post and comment creators**, so the message is prepared as
+a posted one is and the profile post's comment count, dates and latest comments are as a forum
+leaves them. Each appears in the news feed. Nobody is alerted - not the profile's owner, not the
+profile post's author and not anyone mentioned - and the address is not logged.
+
+**A profile post is by someone other than the profile's owner unless `status()` says otherwise.**
+Without `on()`, the owner and the author are both drawn from the members given to `recycle()`.
+A comment's author is drawn from them too, and may be the owner or the profile post's author.
+Each is dated after its author joined, and a comment after the profile post and the comments
+before it.
+
+```bash
+php cmd.php seeder:run ProfilePost -p posts=8 -p statuses=3 -p comments=2
 ```
 
 ### Custom user fields

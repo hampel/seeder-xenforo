@@ -89,6 +89,20 @@ class PollsAndStickyTest extends TestCase
 		}
 	}
 
+	public function test_voted_by_all_has_every_recycled_member_vote_once()
+	{
+		$this->recordInto('test-poll-every');
+
+		$members = UserFactory::new()->count(5)->create();
+		$thread = ThreadFactory::new()->recycle($members)->withPoll(3)->votedByAll()->create(['user_id' => $members->first()->user_id]);
+
+		$poll = $this->app()->em()->findOne('XF:Poll', ['content_type' => 'thread', 'content_id' => $thread->thread_id]);
+		$voters = array_map('intval', $this->app()->db()->fetchAllColumn('SELECT user_id FROM xf_poll_vote WHERE poll_id = ?', $poll->poll_id));
+
+		$this->assertEqualsCanonicalizing($members->pluckNamed('user_id'), $voters);
+		$this->assertSame(5, $poll->voter_count);
+	}
+
 	public function test_a_poll_is_refused_in_a_forum_that_takes_no_poll_threads_and_with_one_choice()
 	{
 		$this->recordInto('test-poll-refused');
