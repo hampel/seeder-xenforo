@@ -788,6 +788,8 @@ what records each entity in a batch. Outside one, nothing is recorded and `seede
 find what was made, so it stays until someone deletes it by hand. *Since 1.0.0b7*, the first
 entity a process makes that way is named in the server error log and on standard error. Inside a
 database transaction nothing is said: that is a test, which rolls its work back.
+On XenForo 2.3.0 only standard error carries it: XenForo's own error logging cannot write from a
+script with no request address there, and drops the entry without a word.
 
 **Keep them in the repository and out of the release.** Seeders and factories are development
 tooling, like tests: a forum running the add-on has no use for them, and a development install is
