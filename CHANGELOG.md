@@ -43,6 +43,9 @@ First release.
   name is switched off
 - a factory used outside `seeder:run` - from a script, say - says once, in the server error log
   and on standard error, that what it makes is in no batch and cannot be cleaned
+- failed jobs, with recurring faults and one-offs thrown from XenForo, add-ons, their libraries
+  and outside the forum, some quoting a made-up credential; and jobs waiting in the queue, by hand
+  or retrying, that will never run
 - moderator log entries about members' threads, replies and accounts, in XenForo's own words,
   written so that nothing that reacts to a moderator action sees them
 - members can have an IP log - registering, logins, logins to the admin control panel and changes

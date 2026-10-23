@@ -110,7 +110,8 @@ ignored and exits 1.
 | `ErrorLog` | a server error log with history: recurring faults, from page views, commands and jobs | `errors` (300), `members` (5; created for about one page-view entry in three to name) |
 | `ModeratorLog` *(since 1.0.0b4)* | a moderator log with history: a few moderators acting on members' threads, replies and accounts, and the members and threads they act on | `entries` (60, about), `moderators` (2), `members` (4), `threads` (6), `replies` (3, the most per thread) |
 | `AdminLog` *(since 1.0.0b3)* | an admin log with history: a few administrators, the ordinary actions repeated and unusual ones once | `entries` (200), `admins` (3; administrators created for the entries to be by) |
-| `Sample` | a little of everything above, bar who is online, the error log, the admin log, HTML widgets and members holding permissions, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
+| `Job` *(since 1.0.0b8)* | failed jobs over the last few weeks, and jobs waiting in the queue that will never run | `failed` (60), `days` (28; how far back the failures go, at least 2), `secrets` (10; the percentage of one-off failures whose message quotes a made-up credential), `queued` (6), `manual` (3; jobs waiting to be run by hand), `retrying` (3; jobs that failed and wait to try again) |
+| `Sample` | a little of everything above, bar who is online, the error log, the admin log, the job queue, HTML widgets and members holding permissions, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -754,6 +755,47 @@ registered before the quiet period.
 **XenForo prunes this log by age only when told to**, with its `moderatorLogLength` setting; 0,
 the default, keeps everything.
 
+### The job queue
+
+*Since 1.0.0b8.*
+
+```bash
+php cmd.php seeder:run Job -p failed=200 -p days=21
+```
+
+**Failed jobs are written as rows. Nothing is made to fail.** Each is what XenForo 2.3 keeps when
+a job throws: the job's class, when it failed, and the exception as PHP writes one out - the type,
+the message, the file and line, and the stack trace. Most failures are a few faults that recur,
+in XenForo's jobs and in a handful of the forum's add-ons; the rest are one-offs. Between them
+they throw from XenForo's own code and the libraries it ships, from an add-on and the libraries
+an add-on ships, from a file outside the forum, and now and then with no file and line at all.
+**A fault inside the forum names a real file where there is one** - XenForo's job, the add-on's
+own code, a library it ships - since whatever reads the history may check the file is there. A
+made-up add-on's file is not, and the line is always made up.
+
+**Some messages quote a credential**, as real ones do: an address with a login in it, a webhook,
+a key in a query string, a token. Every one is made up and says so, with `SECRET` or
+`example.com` in it - for testing whatever displays these to remove them.
+
+**No failure is dated within a day of now**, or within the quiet period the error log keeps if
+that is longer. Something that watches the queue may report a failure from the last day; one
+older than that is history. XenForo keeps failed jobs only while debug mode is on, and never
+prunes them itself.
+
+**No queued job will ever run.** Each is due five to ten years from now, so neither the queue nor
+the admin control panel's run of manual jobs picks one up, and none is shown as stopped. Each
+names a job class that does not exist, so one that ever were run would fail rather than do
+anything. So a seeded queue has jobs waiting, jobs to be run by hand and jobs retrying, and
+nothing due or stalled: a job that was due would be run.
+
+| factory | builds | states |
+|---|---|---|
+| `FailedJobFactory` | failed jobs | `count(n)`, `within($days)`, `secrets(0.1)` |
+| `JobFactory` | jobs in the queue | `count(n)`, `manual(0.25)`, `retrying(0.25)` |
+
+`manual()`, `retrying()` and `secrets()` take the share of rows, from 0 to 1. XenForo has no
+entity for either table, so `seeder:list` names them as `xf_failed_job` and `xf_job`.
+
 ### Your own seeders and factories
 
 **Any add-on can carry seeders for its own content.** Put a class in the add-on's `Seed` directory
@@ -858,7 +900,8 @@ does without asking XenForo, so an add-on that extends that check to store the a
 does not store these.
 
 **Writing rows in bulk.** For a table whose rows stand alone, extend `AbstractBulkFactory` and
-yield the rows from `rows()`, each as the database stores it. It is the wrong tool for content: no
+yield the rows from `rows()`, each as the database stores it. For a table XenForo gives no entity,
+set `$entity` to the table's name and override `tableOf()` to say what its key is. It is the wrong tool for content: no
 entity is saved, so no counter, search index or other add-on's bookkeeping is updated.
 
 A key written `Relation.column` sets a column on a related entity, which is created if need be and

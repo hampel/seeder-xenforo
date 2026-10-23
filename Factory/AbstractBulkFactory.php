@@ -20,7 +20,11 @@ abstract class AbstractBulkFactory
 	/** @var array [table => true] tables already checked for columns this would leave out */
 	private static $checked = [];
 
-	/** @var string the short name of the entity whose table this writes, such as XF:SessionActivity */
+	/**
+	 * @var string the short name of the entity whose table this writes, such as XF:SessionActivity -
+	 *             or, for a table XenForo gives no entity, the table's own name, with tableOf()
+	 *             saying what its key is
+	 */
 	protected $entity;
 
 	final public function __construct()
@@ -80,8 +84,7 @@ abstract class AbstractBulkFactory
 			return 0;
 		}
 
-		$structure = \XF::em()->getEntityStructure($entity);
-		$columns = (array) $structure->primaryKey;
+		[$table, $columns] = static::tableOf($entity);
 
 		// a key of one column is recorded, and so comes back, as its value alone
 		foreach ($keys AS &$key)
@@ -94,8 +97,21 @@ abstract class AbstractBulkFactory
 		unset($key);
 
 		return (int) \XF::db()->query(
-			"DELETE FROM `{$structure->table}` WHERE " . self::whereKeys($columns, $keys)
+			"DELETE FROM `{$table}` WHERE " . self::whereKeys($columns, $keys)
 		)->rowsAffected();
+	}
+
+	/**
+	 * The table an entity's rows are in, and its primary key. A factory for a table XenForo gives
+	 * no entity answers for it here.
+	 *
+	 * @return array [table, [column, ...]]
+	 */
+	protected static function tableOf(string $entity): array
+	{
+		$structure = \XF::em()->getEntityStructure($entity);
+
+		return [$structure->table, (array) $structure->primaryKey];
 	}
 
 	protected function context(): Context
@@ -109,8 +125,7 @@ abstract class AbstractBulkFactory
 	protected function write(array $rows): int
 	{
 		$db = \XF::db();
-		$structure = \XF::em()->getEntityStructure($this->entity);
-		$primaryKey = (array) $structure->primaryKey;
+		[$table, $primaryKey] = static::tableOf($this->entity);
 
 		// one row per key: a second with the same key in this chunk would be dropped by the insert
 		$byKey = [];
@@ -123,7 +138,7 @@ abstract class AbstractBulkFactory
 		// and none whose key is already in the table: that row is somebody else's, or an earlier
 		// chunk's, and either way is not to be overwritten or recorded again
 		$existing = $db->fetchAll(
-			'SELECT `' . implode('`, `', $primaryKey) . "` FROM `{$structure->table}` WHERE "
+			'SELECT `' . implode('`, `', $primaryKey) . "` FROM `{$table}` WHERE "
 			. self::whereKeys($primaryKey, array_column($byKey, 0))
 		);
 		foreach ($existing AS $key)
@@ -136,11 +151,33 @@ abstract class AbstractBulkFactory
 			return 0;
 		}
 
-		self::assertWritable($structure->table, array_keys(reset($byKey)[1]));
-		$db->insertBulk($structure->table, array_column($byKey, 1), false, false, 'IGNORE');
+		self::assertWritable($table, array_keys(reset($byKey)[1]));
+		$db->insertBulk($table, array_column($byKey, 1), false, false, 'IGNORE');
 		$this->context()->recorder->recordRows($this->entity, array_column($byKey, 0), static::class);
 
 		return count($byKey);
+	}
+
+	/**
+	 * Write rows one at a time into a table whose key the database gives, so that the id each
+	 * insert was given is the one recorded - never a guess that another writer to the table could
+	 * have taken. A factory for such a table calls this from its own write().
+	 *
+	 * @return int how many were written
+	 */
+	protected function insertEach(array $rows): int
+	{
+		$db = \XF::db();
+		[$table, $primaryKey] = static::tableOf($this->entity);
+		self::assertWritable($table, array_keys(reset($rows)));
+
+		foreach ($rows AS $row)
+		{
+			$db->insert($table, $row);
+			$this->context()->recorder->recordRows($this->entity, [[reset($primaryKey) => (int) $db->lastInsertId()]], static::class);
+		}
+
+		return count($rows);
 	}
 
 	/**

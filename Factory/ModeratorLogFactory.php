@@ -279,17 +279,7 @@ class ModeratorLogFactory extends AbstractBulkFactory
 	 */
 	protected function write(array $rows): int
 	{
-		$db = \XF::db();
-		$table = \XF::em()->getEntityStructure($this->entity)->table;
-		self::assertWritable($table, array_keys(reset($rows)));
-
-		foreach ($rows AS $row)
-		{
-			$db->insert($table, $row);
-			$this->context()->recorder->recordRows($this->entity, [['moderator_log_id' => (int) $db->lastInsertId()]], static::class);
-		}
-
-		return count($rows);
+		return $this->insertEach($rows);
 	}
 
 	private function deletionReason(Entity $content): ?string

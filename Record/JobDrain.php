@@ -1,5 +1,6 @@
 <?php namespace Hampel\Seeder\Record;
 
+use Hampel\Seeder\Factory\JobFactory;
 use XF\Repository\CountersRepository;
 
 /**
@@ -44,9 +45,12 @@ class JobDrain
 			// queued after this had finished looking.
 			\XF::triggerRunOnce();
 
+			// never a job seeded as a row: it is not one a save queued, and running it is what
+			// JobFactory exists to make impossible
 			$ids = \XF::db()->fetchAllColumn(
-				'SELECT job_id FROM xf_job WHERE job_id > ? AND execute_class <> ? ORDER BY job_id',
-				[$this->mark, 'XF\Job\Cron']
+				'SELECT job_id FROM xf_job WHERE job_id > ? AND execute_class <> ?
+					AND (unique_key IS NULL OR unique_key NOT LIKE ?) ORDER BY job_id',
+				[$this->mark, 'XF\Job\Cron', JobFactory::KEY_PREFIX . '%']
 			);
 			if (!$ids)
 			{

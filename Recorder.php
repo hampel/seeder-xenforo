@@ -20,7 +20,8 @@ interface Recorder
 	/**
 	 * Told about rows that were written in bulk, without an entity each.
 	 *
-	 * @param string $entity the short name of the entity the rows belong to, such as XF:SessionActivity
+	 * @param string $entity the short name of the entity the rows belong to, such as XF:SessionActivity,
+	 *                       or the table's own name where XenForo gives it no entity
 	 * @param array $keys one [column => value] primary key per row
 	 * @param string|null $factory the class of the bulk factory that wrote them
 	 */

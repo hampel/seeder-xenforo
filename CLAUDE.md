@@ -110,6 +110,21 @@ for everything else Seeder saves.
 The factory lives in the framework half and cannot read `config.php`, so the period is handed to
 it: `SeedRunner` calls `ErrorLogFactory::quietFor()` with `Config::errorLogQuietHours()`.
 
+## A seeded job must never run
+
+**`JobFactory` dates every queued job five to ten years ahead, names a class that does not exist,
+and gives it a unique key starting `seeder-`.** A row that was due would be run by the queue, or
+offered to an administrator as a stopped manual job, and would fail and log an error. So nothing
+due or stalled is seeded, by design; an add-on that needs those plants them in a sandbox.
+
+**`JobDrain` skips that key.** It runs the jobs a run's saves queued with `runById()`, which does
+not look at the date, so without the check `seeder:run` would run every seeded job on its way out.
+Found while building it on 2026-10-23; `JobTest` fails if the check goes.
+
+**Failed jobs keep the error log's rule, by a day rather than two hours**: something that watches
+the queue reports a failure from the last day. Neither the queue nor failed jobs go in
+`SampleSeeder` or `DefaultSeeder`.
+
 ## A date left to its column default is wrong
 
 **`'default' => \XF::$time` in an entity structure is evaluated once per process**, when the

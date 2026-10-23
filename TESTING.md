@@ -80,6 +80,10 @@ needs a person.
   forum can react to a moderator action as it is taken, by extending the logger or on the entity's
   save; neither sees a row. The bulk writer refuses a table another add-on has given a column with
   no default.
+- **The job queue** — failed jobs and queued jobs as rows inserted one at a time, each id recorded
+  as the insert gave it and removed by id; XenForo has no entity for either table. A queued job is
+  due years ahead, names a class that does not exist and carries a `seeder-` unique key, which
+  the drain at the end of a run and a clean skips, since `runById()` ignores the date.
 - **A member's history** — the change log is XenForo's own behaviour, written as each change is
   saved through the `User`, `UserProfile`, `UserOption` and `UserPrivacy` entities with the clock
   moved and the editor as the visitor. Username changes are `UsernameChange` entities with the new
@@ -344,6 +348,17 @@ a thread's history agrees with whether it is locked, stuck and visible now; no m
 entity is saved, checked by saving through the entity, which fails it; cleaning removes the
 batch's rows and not a real moderator's written meanwhile; a table with a column no row could fill
 is refused; the seeder makes its moderators, members and content.
+
+For the job queue: failed jobs thrown from XenForo, a library it ships, an add-on's own code and a
+runtime library the add-on ships, all real files, from outside the forum and with no file at all;
+none from a test or a test library; recurring faults and many one-offs; every quoted credential
+says it is made up; none dated within a day; none earlier than asked; a day cannot be asked for.
+Queued jobs: years ahead, classes that do not exist, marked, manual and retrying as asked, nothing
+due; the drain at the end of a run does not run one, checked by removing the skip, which fails
+it; cleaning removes the batch's rows and not a real failure or job written meanwhile; the seeder
+makes both and refuses `secrets` over 100. Checked on 2026-10-23 on the development forum through
+`Hampel/AdminApi`'s job queue report: every location it tells apart appeared, nothing was due, no
+error was logged, and the batch cleaned back to the forum's own one failure and two jobs.
 
 For a member's history: changes by the member and by an administrator, each inside the member's
 span, each field's old value the one before it left, the member ending with the last values, and
