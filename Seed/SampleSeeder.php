@@ -34,7 +34,7 @@ class SampleSeeder extends AbstractSeeder
 		$this->call(ConversationSeeder::class, ['conversations' => 2, 'messages' => 4, 'members' => 3]);
 		$this->call(UserSeeder::class, ['users' => 0, 'access' => 5, 'active' => 2, 'moderated' => 2, 'passwordless' => 1, 'no_auth' => 1, 'banned' => 2, 'bouncing' => 1, 'admins' => 1, 'changes' => 1, 'renamed' => 3, 'rejected' => 2, 'ips' => 1]);
 		$this->call(UserFieldSeeder::class, ['fields' => 4, 'members' => 3]);
-		$this->call(UserUpgradeSeeder::class, ['upgrades' => 1, 'members' => 3, 'active' => 2, 'expired' => 2]);
+		$this->call(UserUpgradeSeeder::class, ['upgrades' => 1, 'purchasable' => 1, 'members' => 3, 'active' => 2, 'expired' => 2]);
 		// content that belongs to another add-on, where the forum has it
 		if (\XF::isAddOnActive('XFRM'))
 		{

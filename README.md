@@ -100,7 +100,7 @@ ignored and exits 1.
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
 | `UserField` | custom user fields of each kind, and members with values in them | `fields` (4; with 0 the forum's own are used), `members` (20), `filled` (80; the percentage of fields each member has a value in) |
-| `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*) |
+| `UserUpgrade` | user upgrades, members holding one, and upgrades that have run out | `upgrades` (2; with 0 the forum's own are used), `active` (5), `expired` (5), `members` (10), `hooks` (0; see *User upgrades*), `purchasable` *(since 1.0.0b7)* (0; how many of the upgrades made are offered for sale, though none can be bought) |
 | `Resource` | Resource Manager resources, in categories | `resources` (6), `categories` (1), `category` (an existing resource category's id, instead of creating any), `authors` (3), `reviews` (0; ratings with a written review, for each resource), `ratings` (0; ratings with nothing written, for each resource), `featured` (0; how many of the resources are featured), `discussions` *(since 1.0.0b2)* (0; 1 gives each resource a discussion thread, in a forum made for them), `forum` *(since 1.0.0b2)* (an existing forum's node id for those threads) |
 | `Media` | Media Gallery items: in a category, in an album, and where a guest cannot view them | `media` (6; in categories), `categories` (1), `category` (an existing media category's id), `albums` (1; each with two or three items), `hidden` (1; items in a private album), `authors` (3), `comments` *(since 1.0.0b2)* (0; how many comments each item in a category gets) |
 | `Warning` | warning definitions, and warnings given to members | `warnings` (10), `definitions` (0 — how many to create; with 0 the forum's own are used), `members` (5) |
@@ -423,14 +423,24 @@ UserUpgradeExpiredFactory::new()->for($other)->for($upgrade)->create();
 
 | factory | creates | states |
 |---|---|---|
-| `UserUpgradeFactory` | an upgrade, not offered for sale | `lasting(n, $unit)`, `permanent()`, `grantingGroups([...])` |
+| `UserUpgradeFactory` | an upgrade, not offered for sale | `lasting(n, $unit)`, `permanent()`, `grantingGroups([...])`, `purchasable()` *(since 1.0.0b7)* |
 | `UserUpgradeActiveFactory` | a member holding an upgrade now, in its groups | `cancelled()`, `withHooks()` |
 | `UserUpgradeExpiredFactory` | an upgrade a member held and no longer does | `withHooks()` |
 | `PaymentProfileFactory` | the payment profile an upgrade has to name; switched off | |
 
 **Nothing can be bought.** XenForo requires every upgrade to name a payment profile, so one is
-made: switched off, and pointing at an account at `example.com`. The upgrade itself has
-`can_purchase` off. No purchase request or payment log is written.
+made: switched off, and pointing at an account at `example.com`. XenForo refuses a purchase through
+a switched-off profile before it writes anything, so no purchase request or payment log is written.
+
+**An upgrade is not offered for sale unless asked.** By default `can_purchase` is off, so members
+see seeded upgrades only among those they hold. `purchasable()`, or `-p purchasable=N`, offers
+the upgrade in the list members can buy from, with its purchase button; buying it still fails at
+the profile. Give such an upgrade one profile only: XenForo leaves a switched-off profile out of
+the choice it shows for several, and the choice comes out empty.
+
+**Check the list as a member, not as a guest.** XenForo shows a guest every upgrade as available,
+`can_purchase` off included, and a command-line script that sets no visitor is a guest. A check
+from there finds the upgrades it expected whatever the data says.
 
 **An upgrade still held always ends in the future**, or never. XenForo's own cron expires one that
 has run out and alerts the member, so the factory refuses to make one. An upgrade that has run out
@@ -772,6 +782,12 @@ class ThingSeeder extends AbstractSeeder
 ```bash
 php cmd.php seeder:run Vendor/AddOn:Thing -p things=25
 ```
+
+**Call factories from a seeder run by `seeder:run`, never from a script or a shell.** The run is
+what records each entity in a batch. Outside one, nothing is recorded and `seeder:clean` cannot
+find what was made, so it stays until someone deletes it by hand. *Since 1.0.0b7*, the first
+entity a process makes that way is named in the server error log and on standard error. Inside a
+database transaction nothing is said: that is a test, which rolls its work back.
 
 **Keep them in the repository and out of the release.** Seeders and factories are development
 tooling, like tests: a forum running the add-on has no use for them, and a development install is

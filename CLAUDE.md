@@ -230,6 +230,14 @@ transaction with the queue faked.
 The framework reports it (*This test's transaction did not survive*). Treat that message as
 "something was left in the database" and go and look.
 
+## Outside a run, a factory records nothing and says so
+
+`Context::current()` without a run's context gives `UnbatchedRecorder`. It records nothing, and
+the first save it sees outside a database transaction goes to the server error log and standard
+error. A test in a transaction is silent; a test that creates without one would log. Added on
+2026-10-23 after another add-on's session nearly seeded a payment profile from a script, which
+would have stayed until deleted by hand.
+
 ## Seeded runs stay reproducible only if nothing reseeds
 
 Faker reseeds `mt_rand()` at random when a generator is destroyed. `Context::faker()` collects

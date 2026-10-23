@@ -9,7 +9,8 @@ use Hampel\Seeder\Faker\XenForoProvider;
  * the window content is dated across, and the password seeded members are given.
  *
  * A run installs its own with Context::use(). Without one, current() supplies a default that
- * records nothing - which suits a test that rolls its work back, and nothing else.
+ * records nothing - which suits a test that rolls its work back, and nothing else. Used anywhere
+ * else, it says so once: see UnbatchedRecorder.
  */
 class Context
 {
@@ -64,7 +65,7 @@ class Context
 		{
 			self::$current = new self(
 				self::faker(),
-				new NullRecorder(),
+				new UnbatchedRecorder(),
 				Timeline::span(Timeline::DEFAULT_SPAN),
 				'password'
 			);

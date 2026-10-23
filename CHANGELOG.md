@@ -39,6 +39,10 @@ First release.
   the same run was refused with "Please select a valid parent"
 - a `forum` parameter naming a node that is not a forum stops the run before anything is made,
   and says what the node is
+- user upgrades can be offered for sale, and still cannot be bought: the payment profile they
+  name is switched off
+- a factory used outside `seeder:run` - from a script, say - says once, in the server error log
+  and on standard error, that what it makes is in no batch and cannot be cleaned
 - moderator log entries about members' threads, replies and accounts, in XenForo's own words,
   written so that nothing that reacts to a moderator action sees them
 - members can have an IP log - registering, logins, logins to the admin control panel and changes

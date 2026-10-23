@@ -184,6 +184,32 @@ class FieldAndUpgradeTest extends TestCase
 		$this->assertDatabaseMissing('xf_payment_profile', ['payment_profile_id' => $upgrade->payment_profile_ids[0]]);
 	}
 
+	public function test_a_purchasable_upgrade_is_offered_to_a_member_and_still_cannot_be_bought()
+	{
+		$this->recordInto('test-upgrade-purchasable');
+		$member = UserFactory::new()->create();
+		$hidden = UserUpgradeFactory::new()->create(['title' => 'Seedertest hidden']);
+		$offered = UserUpgradeFactory::new()->purchasable()->create(['title' => 'Seedertest offered']);
+
+		// a guest is shown every upgrade whatever its flag, so ask as a member
+		$available = \XF::asVisitor($member, function ()
+		{
+			return $this->app()->repository('XF:UserUpgrade')->getFilteredUserUpgradesForList()[0];
+		});
+		$this->assertArrayHasKey($offered->user_upgrade_id, $available);
+		$this->assertArrayNotHasKey($hidden->user_upgrade_id, $available);
+		$this->assertTrue(UserUpgradeFactory::describe($offered)['can_purchase']);
+
+		$request = new \XF\Http\Request($this->app()->inputFilterer(), [
+			'payment_profile_id' => $offered->payment_profile_ids[0], 'user_upgrade_id' => $offered->user_upgrade_id,
+		]);
+		$purchase = (new \XF\Purchasable\UserUpgrade('user_upgrade'))->getPurchaseFromRequest($request, $member, $error);
+
+		$this->assertFalse($purchase);
+		$this->assertSame('please_choose_valid_payment_profile_to_continue_with_your_purchase', $error->getName());
+		$this->assertDatabaseCount('xf_purchase_request', 0, ['user_id' => $member->user_id]);
+	}
+
 	public function test_a_profile_something_still_names_is_left_and_reported()
 	{
 		$this->recordInto('test-upgrade-profile');
@@ -325,6 +351,24 @@ class FieldAndUpgradeTest extends TestCase
 		$this->assertStringContainsString('active cannot be more than members x upgrades', $tester->getErrorOutput());
 
 		(new Cleaner())->clean('test-upgrade-many');
+	}
+
+	public function test_purchasable_offers_that_many_of_the_upgrades_and_says_so()
+	{
+		$tester = new CommandTester(new Run());
+		$code = $tester->execute(['seeder' => 'UserUpgrade', '-p' => ['upgrades=3', 'purchasable=2', 'members=2', 'active=1', 'expired=1'], '--batch' => 'test-upgrade-purchasable'], ['capture_stderr_separately' => true]);
+
+		$this->assertSame(0, $code, $tester->getDisplay() . $tester->getErrorOutput());
+		$this->assertStringContainsString('purchasable: upgrades are offered for sale on this forum', $tester->getErrorOutput());
+		$created = json_decode($tester->getDisplay(), true)['created'];
+		$this->assertSame([true, true, false], array_column($created['XF:UserUpgrade'], 'can_purchase'));
+		$this->assertCount(1, $created['XF:PaymentProfile'], 'one profile between them');
+
+		$this->assertSame([], (new Cleaner())->clean('test-upgrade-purchasable')['failed']);
+
+		$code = $tester->execute(['seeder' => 'UserUpgrade', '-p' => ['upgrades=1', 'purchasable=2'], '--batch' => 'test-upgrade-purchasable-many'], ['capture_stderr_separately' => true]);
+		$this->assertSame(1, $code);
+		$this->assertStringContainsString('purchasable cannot be more than upgrades, which is 1', $tester->getErrorOutput());
 	}
 
 	private function recordInto(string $batch): CollectingRecorder

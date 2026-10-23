@@ -5,6 +5,7 @@ use Hampel\Seeder\Factory\UserFactory;
 use Hampel\Seeder\Factory\UserUpgradeActiveFactory;
 use Hampel\Seeder\Factory\UserUpgradeExpiredFactory;
 use Hampel\Seeder\Factory\UserUpgradeFactory;
+use XF\Mvc\Entity\ArrayCollection;
 
 /**
  * User upgrades, with members who hold one now and members whose upgrade has run out.
@@ -17,18 +18,36 @@ use Hampel\Seeder\Factory\UserUpgradeFactory;
  *     members    how many members to create for them to be among (10)
  *     hooks      1 to go through XenForo's upgrade service, so that other add-ons' reactions
  *                to an upgrade happen (0)
+ *     purchasable  how many of the upgrades made are offered for sale, though none can be
+ *                bought (0)
  *
- * The upgrades are not offered for sale and put nobody in a group. Nobody is alerted or mailed.
+ * The upgrades put nobody in a group, and none can be bought: the payment profile is switched off.
+ * Nobody is alerted or mailed.
  */
 class UserUpgradeSeeder extends AbstractSeeder
 {
 	public function run()
 	{
 		$count = $this->count('upgrades', 2);
-		$upgrades = $count
+		$purchasable = $this->count('purchasable', 0);
+		if ($purchasable > $count)
+		{
+			throw new \InvalidArgumentException("purchasable cannot be more than upgrades, which is {$count}");
+		}
+
+		if ($count)
+		{
 			// one payment profile between them: each upgrade has to name one, and one is enough
-			? UserUpgradeFactory::new()->recycle(PaymentProfileFactory::new()->create())->count($count)->create()
-			: \XF::finder('XF:UserUpgrade')->fetch();
+			$factory = UserUpgradeFactory::new()->recycle(PaymentProfileFactory::new()->create());
+			$upgrades = new ArrayCollection(array_merge(
+				$factory->purchasable()->count($purchasable)->create()->toArray(),
+				$factory->count($count - $purchasable)->create()->toArray()
+			));
+		}
+		else
+		{
+			$upgrades = \XF::finder('XF:UserUpgrade')->fetch();
+		}
 		if (!$upgrades->count())
 		{
 			throw new \InvalidArgumentException('This forum has no user upgrades of its own: ask for some with upgrades=N');
@@ -73,12 +92,18 @@ class UserUpgradeSeeder extends AbstractSeeder
 
 	public function notices(): array
 	{
-		if (!$this->count('hooks', 0))
+		$notices = [];
+		if ($this->count('hooks', 0))
 		{
-			return [];
+			$notices[] = 'hooks=1: upgrades go through XenForo\'s upgrade service, so anything another add-on does when a member '
+				. 'is upgraded or an upgrade runs out will happen for each of them - including sending the member\'s details elsewhere.';
+		}
+		if ($this->count('purchasable', 0))
+		{
+			$notices[] = 'purchasable: upgrades are offered for sale on this forum, with a purchase button, until the batch is cleaned. '
+				. 'A purchase cannot complete: the payment profile they name is switched off.';
 		}
 
-		return ['hooks=1: upgrades go through XenForo\'s upgrade service, so anything another add-on does when a member '
-			. 'is upgraded or an upgrade runs out will happen for each of them - including sending the member\'s details elsewhere.'];
+		return $notices;
 	}
 }
