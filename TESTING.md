@@ -517,6 +517,11 @@ asserts that creating a member leaves the table as it was.
   browser, or at a post's IP.
 - **`crawlerUserAgent()` with an add-on that extends the robot list.** Its agents were checked
   against XenForo's own list only; which robot each is on a forum with a longer list was not.
+- **A purchasable upgrade on the account upgrades page, in a browser.** Seed `UserUpgrade` with
+  `purchasable=1`, sign in as one of its members, and open the account upgrades page: the upgrade
+  should be in the list to buy, with its button, and choosing it should stop at the payment
+  profile with nothing bought. Checked on 2026-10-23 only through XenForo's repository, as a
+  member and as a guest, and through its purchase check; never on the page.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo
