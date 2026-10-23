@@ -128,16 +128,16 @@
         },
         {
             "name": "hampel/xenforo-test-framework",
-            "version": "5.28.0",
+            "version": "5.33.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/hampel/xenforo-test-framework.git",
-                "reference": "3bddc1d13999db14950cc56953627d036a7f2236"
+                "reference": "16e5713b0c6f248ab7ca64137bfad6beab4ecdec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/hampel/xenforo-test-framework/zipball/3bddc1d13999db14950cc56953627d036a7f2236",
-                "reference": "3bddc1d13999db14950cc56953627d036a7f2236",
+                "url": "https://api.github.com/repos/hampel/xenforo-test-framework/zipball/16e5713b0c6f248ab7ca64137bfad6beab4ecdec",
+                "reference": "16e5713b0c6f248ab7ca64137bfad6beab4ecdec",
                 "shasum": ""
             },
             "require": {
@@ -149,6 +149,7 @@
                 "league/flysystem-memory": ">=2.0"
             },
             "require-dev": {
+                "hampel/xenforo-phpstan": "^0.4.1",
                 "league/flysystem": "^1.1.4",
                 "league/flysystem-memory": "^1.0",
                 "nesbot/carbon": "^2.50|^3.0",
@@ -189,7 +190,7 @@
                 "issues": "https://github.com/hampel/xenforo-test-framework/issues",
                 "source": "https://github.com/hampel/xenforo-test-framework"
             },
-            "time": "2026-10-14T22:59:46+00:00"
+            "time": "2026-10-23T01:21:15+00:00"
         },
         {
             "name": "mockery/mockery",
