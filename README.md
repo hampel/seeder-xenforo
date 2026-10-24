@@ -94,7 +94,7 @@ ignored and exits 1.
 | seeder | creates | parameters |
 |---|---|---|
 | `Default` | members, forums, and threads by those members in those forums | `users` (20), `forums` (2), `forum_types` *(since 1.0.0b2)* (0; 1 makes the forums of each type in turn: discussion, article, question, suggestion), `categories` *(since 1.0.0b6)* (0; puts the forums inside that many categories, by turns), `subforums` *(since 1.0.0b6)* (0; gives each forum between one and that many forums inside it, with threads), and those of `Thread` |
-| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `changes` *(since 1.0.0b4)* (0; more members who have changed their account, some of it changed by an administrator), `renamed` *(since 1.0.0b4)* (0; more members who have changed their name, some with a later request rejected or awaiting approval), `rejected` *(since 1.0.0b4)* (0; more members whose registration was rejected, by turns by the spam check and by a moderator), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*) |
+| `User` | members | `users` (20), `access` (0; more members, each with another way into their account), `active` (0; more members who have used the forum without posting), `moderated` (0; more members awaiting approval), `passwordless` (0; more members who registered through a connected account and have no password), `no_auth` (0; more members with no authentication record at all), `banned` (0; more members who are banned, by turns permanently and for thirty days, and one moderator who banned them), `bouncing` (0; more members whose mail bounced), `admins` *(since 1.0.0b3)* (0; more members who are administrators, with no administrator permissions; see *Members*), `permitted` *(since 1.0.0b3)* (0; more members who hold the permissions in `permissions`, through a user group made to grant them), `permissions` (which: `general.bypassFloodCheck`, or `conversation.maxRecipients:50` where the value is not allow; several separated by commas), `changes` *(since 1.0.0b4)* (0; more members who have changed their account, some of it changed by an administrator), `renamed` *(since 1.0.0b4)* (0; more members who have changed their name, some with a later request rejected or awaiting approval), `rejected` *(since 1.0.0b4)* (0; more members whose registration was rejected, by turns by the spam check and by a moderator), `ips` *(since 1.0.0b4)* (0; 1 gives every member made an IP log; see *Members*), `registered` *(since 1.0.0b10)* (0; 1 has every member made register through XenForo's registration service, so other add-ons' reactions to a registration happen; see *Members*) |
 | `Thread` | threads with replies, and a prefix | `threads` (12), `replies` (5, the most per thread), `authors` (5), `forum` (an existing forum's node id; a new forum if omitted), `forum_type` *(since 1.0.0b2)* (`discussion`; the type of the forum that is made), `prefix` (1, or 0 for none), `reactions` (0; the most per post), `tags` (0; how many different tags to file threads under), `featured` (0; how many of the threads are featured), `sticky` *(since 1.0.0b2)* (0; how many of the threads are sticky), `polls` *(since 1.0.0b2)* (0; how many of the threads have a poll, with votes from the authors), `states` (0; 1 adds threads and replies awaiting approval or soft-deleted), `permission_groups` *(since 1.0.0b5)* (0; user groups each denying its members others' threads in one forum, with the authors spread across them; see *Members*), `ips` *(since 1.0.0b4)* (0; 1 logs the address of every thread and reply, and gives each author made an IP log) |
 | `SearchForum` *(since 1.0.0b2)* | search forums, each listing one forum's threads | `search_forums` (2), `forum` (an existing forum's node id; if omitted a new forum is made and given threads by `Thread`, whose parameters apply) |
 | `Conversation` | conversations between members, with replies | `conversations` (5), `messages` (10; in each, the first included), `participants` (3; the most in one, the starter included), `members` (6; created for them to be between) |
@@ -161,6 +161,7 @@ UserFactory::new()
 | a history of changes to the account *(since 1.0.0b4)* | `->withChanges()`, `->withChanges(10, $admin)` |
 | other names before this one *(since 1.0.0b4)* | `->renamed()`, `->renamed(3)`; with `->withUsernameRequest()` awaiting approval or `->withUsernameRequest('rejected')` |
 | an IP log *(since 1.0.0b4)* | `->withIpLog()`, or `->withIpLog(40)` for that many logins |
+| registered through XenForo's registration service *(since 1.0.0b10)* | `->registered()`, or `->registered(['REMOTE_ADDR' => '203.0.113.7', 'HTTP_CF_IPCOUNTRY' => 'AU'])` for the request it arrives on |
 | a member who has used the forum without posting | `->activeWithoutContent()`, or its parts: `->withLogin()`, `->withAlert()`, `->following()`, `->followedBy()` |
 | values in custom user fields | `->withFields(['field_id' => 'value'])`, or `->withFieldValues()` for a made-up value in every field the forum has |
 
@@ -231,6 +232,24 @@ the first most. About one address in four is one another member of the run alrea
 address can lead to several members. Addresses come from the ranges set aside for documentation
 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` and `2001:db8::/32`), which no visitor comes
 from. A run's JSON lists each member's addresses under `addresses`, the one they use most first.
+**The approval queue shows the registration row's address**, so a member awaiting approval shows
+none there without `withIpLog()` or `registered()`.
+
+**`registered()` saves the member through XenForo's own registration service** *(since
+1.0.0b10)*, for an add-on that extends that service: its extension runs for a seeded member as it
+does for one who signs up. **That can send the member's details out of the forum**, wherever that
+add-on sends them, which is why it is asked for and why `seeder:validate` never does it. XenForo
+itself mails and alerts nobody: mail, the welcome message and trophies are switched off for the
+save, and its spam check is not run - the registration form calls that, not the service.
+
+- **The registration arrives on a request made from the values given**, as PHP's `$_SERVER` holds
+  them - see `Context::withRequest()` under *Your own seeders and factories*. Without them it comes
+  from a browser's user agent and an address from the documentation ranges. XenForo logs that
+  address as the one the member registered from, and `withIpLog()` builds on it.
+- **The forum's registration setup decides the state.** A member left at the default ends awaiting
+  email confirmation, awaiting approval or valid, as one who signed up there would - and XenForo
+  ships with email confirmation on. `moderated()` or `unconfirmed()` choose instead. Where the
+  forum asks for a date of birth or a location, the member is given one.
 
 **A member's history is written as XenForo writes it** *(since 1.0.0b4)*. `withChanges()` saves
 each change through the entities as the member, or as an administrator, with XenForo's clock at
@@ -941,6 +960,22 @@ agent can be a robot on one forum and not on another. `robotFor()` matches the l
 does without asking XenForo, so an add-on that extends that check to store the agents it sees
 does not store these.
 
+**PHPStan in another add-on reports `Faker\Generator` as an unknown class**, since Faker is in
+Seeder's own `vendor/`, and an analysis that leaves every add-on's `vendor/` out - so that one
+add-on's copy of a library cannot stand in for another's - leaves it out even when told to scan
+it. Name the file instead, which an exclusion does not reach:
+
+```yaml
+parameters:
+    scanFiles:
+        - ../Seeder/vendor/fakerphp/faker/src/Faker/Generator.php
+```
+
+The path is from the add-on's own directory to Seeder's beside it, and **a scanned file that is not
+there stops the analysis**, so this works only where Seeder is installed beside the add-on; an
+ignore for the one error works anywhere. Faker's own methods then resolve; the ones above come
+back as `mixed`.
+
 **Writing rows in bulk.** For a table whose rows stand alone, extend `AbstractBulkFactory` and
 yield the rows from `rows()`, each as the database stores it. For a table XenForo gives no entity,
 set `$entity` to the table's name and override `tableOf()` to say what its key is. It is the wrong tool for content: no
@@ -957,6 +992,22 @@ fields to the JSON a run prints.
 **`store()` need not call `save()` itself.** It can hand the entity to a service - XenForo's, or
 the add-on's own uploader - so that what is seeded is validated and stored as the real thing is.
 The entity only has to be saved by the time `store()` returns.
+
+**Code that reads the visitor's request can be given one** *(since 1.0.0b10)*. In a command the
+request is the command's own, with no address, user agent or headers worth reading.
+`Context::withRequest()` runs a callback while XenForo's request is one made from the values
+given, as PHP's `$_SERVER` holds them, and puts the real one back afterwards, even when the
+callback throws:
+
+```php
+$location = Context::withRequest(
+    ['REMOTE_ADDR' => '203.0.113.7', 'HTTP_CF_IPCOUNTRY' => 'AU', 'HTTP_USER_AGENT' => $faker->browserUserAgent()],
+    function () { return \XF::service('Vendor\AddOn:Locator')->locate(); }
+);
+```
+
+`REQUEST_METHOD` is `GET` unless given - without one XenForo's request reports no method at all.
+Nothing else is filled in, and the request carries no input, files or cookies.
 
 **An attribute that is not a column is taken out in `newEntity()` and kept until `store()`** - a
 title that goes into a phrase, or the file an upload is made from. Keep it in a static `WeakMap`

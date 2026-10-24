@@ -36,11 +36,18 @@ use Hampel\Seeder\Factory\UserGroupFactory;
  *                and by a moderator (0)
  *     ips        1 to give every member made here an IP log: registering, logins and changes to
  *                the account, from addresses some of them share (0)
+ *     registered 1 to have every member made here register through XenForo's registration
+ *                service, so that other add-ons' reactions to a registration happen for them (0).
+ *                The forum's registration setup decides whether each awaits confirmation or
+ *                approval, unless this seeder says which
  */
 class UserSeeder extends AbstractSeeder
 {
 	/** @var bool */
 	private $ips = false;
+
+	/** @var bool */
+	private $registered = false;
 
 	/** @var \XF\Entity\User|null */
 	private $moderator;
@@ -48,6 +55,7 @@ class UserSeeder extends AbstractSeeder
 	public function run()
 	{
 		$this->ips = (bool) $this->count('ips', 0);
+		$this->registered = (bool) $this->count('registered', 0);
 
 		$this->member()->count($this->count('users', 20))->create();
 
@@ -153,8 +161,22 @@ class UserSeeder extends AbstractSeeder
 		return $this->moderator = $this->moderator ?? $this->member()->state(['is_moderator' => true, 'is_staff' => true])->create();
 	}
 
+	public function notices(): array
+	{
+		if (!$this->count('registered', 0))
+		{
+			return [];
+		}
+
+		return ['registered=1: members register through XenForo\'s registration service, so anything another add-on does when a '
+			. 'member registers will happen for each of them - including sending the member\'s details elsewhere. XenForo itself '
+			. 'mails and alerts nobody.'];
+	}
+
 	private function member(): UserFactory
 	{
-		return $this->ips ? UserFactory::new()->withIpLog() : UserFactory::new();
+		$member = $this->ips ? UserFactory::new()->withIpLog() : UserFactory::new();
+
+		return $this->registered ? $member->registered() : $member;
 	}
 }

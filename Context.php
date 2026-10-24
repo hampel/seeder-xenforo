@@ -75,6 +75,39 @@ class Context
 	}
 
 	/**
+	 * Runs something while XenForo's request is one made from these server values, and puts the
+	 * real one back - for code that reads the visitor's address, user agent or headers, which in a
+	 * command are the command's own.
+	 *
+	 *     Context::withRequest(['REMOTE_ADDR' => '203.0.113.7', 'HTTP_USER_AGENT' => $agent], function () { ... });
+	 *
+	 * **`REQUEST_METHOD` is GET unless given**: without one, XenForo's request reports no method at
+	 * all. Nothing else is filled in, and the request carries no input, files or cookies.
+	 *
+	 * @param array<string, string> $server values as PHP's `$_SERVER` holds them
+	 *
+	 * @return mixed whatever the callback returned
+	 */
+	public static function withRequest(array $server, callable $callback)
+	{
+		$app = \XF::app();
+		$container = $app->container();
+		// the request already made, so whatever holds it still has the one in use afterwards
+		$real = $container->isCached('request') ? $container['request'] : $container->getOriginal('request');
+
+		$container['request'] = new \XF\Http\Request($app->inputFilterer(), [], [], [], $server + ['REQUEST_METHOD' => 'GET']);
+
+		try
+		{
+			return $callback();
+		}
+		finally
+		{
+			$container['request'] = $real;
+		}
+	}
+
+	/**
 	 * @return self|null the context this one replaced, to hand back to use() afterwards
 	 */
 	public static function use(?self $context): ?self

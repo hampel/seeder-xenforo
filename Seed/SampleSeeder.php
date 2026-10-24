@@ -17,6 +17,10 @@
  * An HTML widget is left out: it has a template of its own, and saving one empties the forum's
  * cached CSS, which validating a forum should not do.
  *
+ * So are a member registered through XenForo's registration service and an upgrade given through
+ * its upgrade service: each runs whatever other add-ons do on that event, which can send the
+ * member's details out of the forum.
+ *
  * It is what seeder:validate seeds and removes to prove cleaning leaves nothing behind, so
  * anything new the add-on learns to create belongs here too.
  */

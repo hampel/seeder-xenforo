@@ -51,8 +51,9 @@ it along.
 ## Nothing a seeded entity does may leave the forum
 
 No mail, alerts, push notifications, webhooks or moderator log. Do not call a creator service's
-`sendNotifications()`, do not use `User\RegistrationService`, and take email addresses from
-reserved domains only. `AbstractFactory::silence()` switches the `XF:Webhook` behaviour and the
+`sendNotifications()`, do not use `User\RegistrationService` except as `registered()` does -
+with mail, the welcome message and trophies switched off for the save - and take email addresses
+from reserved domains only. `AbstractFactory::silence()` switches the `XF:Webhook` behaviour and the
 `log_moderator` option off; a factory that overrides `remove()` must call it. **Silence every
 entity the save touches, not only the one being saved** - applying a warning saves the post and
 the member too.
@@ -66,7 +67,9 @@ are too.
 
 **Where the only outward effect is another add-on's hook on a XenForo service, write through the
 entity by default and offer the service as an opt-in** that says what it means before it runs.
-User upgrades are the model: `withHooks()` and `hooks=1`.
+User upgrades are the model: `withHooks()` and `hooks=1`. Registration follows it:
+`UserFactory::registered()` and `registered=1`, added in 1.0.0b10 for an add-on that extends the
+registration service's save.
 
 **Anything new the add-on learns to create goes into `Seed\SampleSeeder`**, which is what
 `seeder:validate` seeds and removes.
@@ -75,6 +78,9 @@ User upgrades are the model: `withHooks()` and `hooks=1`.
 and empties the cached CSS, which validating a forum must not do. The other widgets are in.
 **So do user groups, and members given permissions**, for the same reason: deleting a user group
 does the same to the styles and the CSS.
+
+**So do the opt-ins that run other add-ons' hooks** - `registered()` and `withHooks()` - since
+validating a forum must not send anything out of it.
 
 **Never generate a bare web address in a message.** XenForo turns one into a link preview and
 queues a job that fetches it. Generated links carry link text and point at `example.com`.

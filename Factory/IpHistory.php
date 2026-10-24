@@ -51,6 +51,21 @@ final class IpHistory
 	}
 
 	/**
+	 * Makes this the member's first address, the one most of what they do comes from - as the
+	 * address a member registered from is. Their others, if any, are drawn as usual.
+	 */
+	public static function startWith(Context $context, int $userId, string $address): void
+	{
+		$addresses = self::addressesFor($context, $userId);
+		$addresses = array_values(array_unique(array_merge([$address], array_slice($addresses, 0, count($addresses) - 1))));
+
+		$run = self::$runs[$context];
+		$run['members'][$userId] = $addresses;
+		$run['handed'] = array_values(array_unique(array_merge($run['handed'], $addresses)));
+		self::$runs[$context] = $run;
+	}
+
+	/**
 	 * One of a member's addresses, the first far more often than the others.
 	 */
 	public static function pick(array $addresses): string

@@ -175,8 +175,9 @@ with it.
 
 - **No creator services for notification.** `Thread\CreatorService` and `ReplierService` send
   notifications from a separate `sendNotifications()` call. Factories write entities and never make
-  that call. `User\RegistrationService` is not used at all — it sends confirmation and welcome
-  mail.
+  that call. `User\RegistrationService` is not used by default — it sends confirmation and
+  welcome mail. Since 1.0.0b10 `registered()` uses it as an opt-in, for add-ons that extend its
+  save, with mail, the welcome message and trophies switched off for the save.
 - **Webhooks are switched off per entity.** `Post` and `Thread` carry the `XF:Webhook` behaviour,
   which fires on every save and has an `enabled` option (`src/XF/Behavior/Webhook.php`). The base
   factory sets it to `false`. Found while surveying; the earlier design did not account for it.

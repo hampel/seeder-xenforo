@@ -12,7 +12,10 @@ needs a person.
   `emailTransport` option.
 - **Members** — `seeder:run` writes `xf_user` and its option, profile, privacy, authentication
   and group-relation rows through the entity, with XenForo's clock moved to each member's
-  registration date. Removal runs XenForo's own delete clean-up service inline.
+  registration date. Removal runs XenForo's own delete clean-up service inline. With
+  `registered()`, through XenForo's `User\RegistrationService` instead, on a request made from
+  given server values, with a copy of the mailer that sends and queues nothing, and the welcome
+  message and trophies switched off for the save.
 - **Forums, threads, replies, prefixes, attachments** — forums and prefixes through their
   entities; threads and replies through XenForo's `Thread\CreatorService` and `ReplierService`,
   with notifications never sent; attachments through `Attachment\PreparerService`, as real PNG
@@ -171,6 +174,12 @@ needs a person.
 - **Hooks on upgrades are other add-ons' code.** With `hooks=1` their jobs are queued and the drain
   runs them; what they do is theirs. The suite loads no other add-on, so it proves only that the
   rows come out the same by either route.
+- **Registration hooks are too, and the suite's stand-in extends the service only once.** PHP
+  cannot declare the proxy XenForo builds for an extension twice, so one test in a process can
+  extend `User\RegistrationService`; that test carries every assertion the extension is needed
+  for. The mail switch is a copy of the mailer with its queue flag cleared through a bound
+  closure, since XenForo gives that flag no setter - a XenForo release that renames it would leave
+  queued mail going out, and the suite's queued mail from the stand-in is what would say so.
 - **Some add-ons finish a delete at the end of the request.** The gallery recounts an owner's
   quota and rebuilds an album's thumbnail then - by which time a clean has deleted the owner and
   the album, and XenForo logs a server error for each. The cleaner ends each removal as its own
@@ -258,6 +267,18 @@ and last comment dates and latest comments right, and alert nobody; a status upd
 profile's owner, and without `status()` a post drawn from recycled members never is; cleaning
 restores the profile post, comment, news feed, alert, approval queue and deletion log tables; the
 seeder makes the posts, statuses and members asked for.
+
+For registration: a member `registered()` is saved through the service with another add-on's
+extension of it running once, on the request given and at the registration date; the address is
+logged as the registration's and is the member's first; the welcome mail and message, a trophy the
+member would earn at once, and mail the extension sends and queues all go nowhere, and the mailer,
+options and request are put back after; an extension that fails after the save leaves no member.
+The forum's registration setup decides the state unless one is asked for, a forum that confirms
+addresses leaves one confirmation row and sends nothing, and one that asks for a date of birth or
+a location gets them. A refused registration says why and leaves nothing; cleaning restores every
+table the registration wrote; the `User` seeder's `registered=1` registers every member and prints
+its notice. `Context::withRequest()` gives the callback the values asked for, `GET` unless told,
+and puts the real request back after a return and after a throw.
 
 For fields and upgrades: a field has its phrases and choices and is known to the forum at once;
 every kind of field takes a made-up value; an unknown field, an unknown choice and a rejected
@@ -553,6 +574,9 @@ asserts that creating a member leaves the table as it was.
   member and as a guest, and through its purchase check; never on the page.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
+- **`seeder:run User -p registered=1` on a forum with an add-on that extends registration**, in
+  a sandbox, since the extension is that add-on's and may send what it learns elsewhere. The suite
+  runs a stand-in for one; no real add-on's extension has run yet.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo
   2.3.0 on PHP 8.1, with the 2.3.0 Media Gallery and Resource Manager: lint the zip's PHP there,
   then the same sequence as above. Last run on 2026-10-24 at 2.3.0 Patch 2 and PHP 8.1, from the

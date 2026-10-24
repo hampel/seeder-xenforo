@@ -1,18 +1,21 @@
 <?php namespace Hampel\Seeder\Factory;
 
 use Hampel\Seeder\Clock;
+use Hampel\Seeder\Context;
 use XF\Entity\User;
 use XF\Mvc\Entity\Entity;
 use XF\Repository\TfaRepository;
 use XF\Repository\UserRepository;
 use XF\Service\User\DeleteCleanUpService;
+use XF\Service\User\RegistrationService;
 
 /**
  * A member: the user row with its option, profile, privacy and authentication rows.
  *
  * Written through the entity, not XenForo's registration service, which sends confirmation and
- * welcome mail. The entities apply the forum's registration defaults themselves, so a seeded member
- * starts with the same preferences as one who registered. Vary them with `Option.`, `Profile.` and
+ * welcome mail - unless registered() asks for the service, with that mail switched off. The
+ * entities apply the forum's registration defaults themselves, so a seeded member starts with the
+ * same preferences as one who registered. Vary them with `Option.`, `Profile.` and
  * `Privacy.` keys: `state(['Option.receive_admin_email' => true])`. Every member gets the run's one password and an address at a reserved domain.
  */
 class UserFactory extends AbstractFactory
@@ -37,6 +40,9 @@ class UserFactory extends AbstractFactory
 
 	/** @var \WeakMap|null what each member is to be given once saved: [[kind, argument], ...] */
 	private static $extras;
+
+	/** @var \WeakMap|null for each member registered(): [the registration service, the request's server values] */
+	private static $registrations;
 
 	/** @var array names handed out in this process and not yet saved */
 	private static $taken = [];
@@ -221,6 +227,32 @@ class UserFactory extends AbstractFactory
 	public function withConfirmationPending()
 	{
 		return $this->unconfirmed()->extra('confirmation');
+	}
+
+	/**
+	 * Registers through XenForo's own registration service instead of being written through the
+	 * entities, so that whatever other add-ons do when a member registers happens for this one
+	 * too. **That can include sending the member's details somewhere else**, which is why it has
+	 * to be asked for.
+	 *
+	 * The registration arrives on a request made from `$server` - see Context::withRequest() -
+	 * from a browser's user agent and an address set aside for documentation unless they are
+	 * given, and XenForo logs that address as the one the member registered from. A member left in
+	 * the default state ends in the state the forum's registration setup gives one - awaiting
+	 * email confirmation, awaiting approval, or valid; moderated() or unconfirmed() choose instead.
+	 * Where the forum asks for a date of birth or a location, the member is given one.
+	 *
+	 * **Nobody is mailed or alerted by XenForo**: mail is switched off for the save, and so are the
+	 * welcome message and trophies. XenForo's spam check is not run - the registration form calls
+	 * it, not the service. What another add-on does is that add-on's.
+	 *
+	 * @param array<string, string> $server the request's values, as PHP's `$_SERVER` holds them
+	 *
+	 * @return static
+	 */
+	public function registered(array $server = [])
+	{
+		return $this->extra('registered', $server);
 	}
 
 	/**
@@ -549,7 +581,15 @@ class UserFactory extends AbstractFactory
 
 	protected function newEntity(array $attributes): Entity
 	{
-		$user = \XF::repository(UserRepository::class)->setupBaseUser();
+		$server = null;
+		foreach ($attributes['extras'] ?? [] AS [$kind, $argument])
+		{
+			$server = $kind === 'registered' ? $argument : $server;
+		}
+
+		// a registration's member is the one the service set up, and the service saves it
+		$registration = $server === null ? null : \XF::service(RegistrationService::class);
+		$user = $registration ? $registration->getUser() : \XF::repository(UserRepository::class)->setupBaseUser();
 
 		// XenForo takes an empty address only from an administrator, and has to be told so before
 		// the address is set
@@ -642,6 +682,28 @@ class UserFactory extends AbstractFactory
 		}
 		$user->Profile->password_date = $user->register_date;
 
+		if ($registration)
+		{
+			$faker = $this->context()->faker;
+			self::$registrations = self::$registrations ?? new \WeakMap();
+			self::$registrations[$user] = [$registration, $server + [
+				'REQUEST_METHOD' => 'POST',
+				'REMOTE_ADDR' => $faker->documentationIp(),
+				'HTTP_USER_AGENT' => $faker->browserUserAgent(),
+			]];
+
+			$setup = \XF::options()->registrationSetup;
+			if (!empty($setup['requireDob']) && !$user->Profile->dob_year)
+			{
+				$born = $faker->dateTimeBetween('-60 years', '-' . max(18, (int) ($setup['minimumAge'] ?? 0) + 1) . ' years');
+				$registration->setDob((int) $born->format('j'), (int) $born->format('n'), (int) $born->format('Y'));
+			}
+			if (!empty($setup['requireLocation']) && !$user->Profile->location)
+			{
+				$user->Profile->location = $faker->city();
+			}
+		}
+
 		return $user;
 	}
 
@@ -658,7 +720,14 @@ class UserFactory extends AbstractFactory
 			}
 		}
 
-		parent::store($entity);
+		if (isset(self::$registrations[$entity]))
+		{
+			$this->register($entity, ...self::$registrations[$entity]);
+		}
+		else
+		{
+			parent::store($entity);
+		}
 
 		// saved, so the database is what says the name is taken from here on
 		unset(self::$taken[strtolower($entity->username)]);
@@ -686,6 +755,71 @@ class UserFactory extends AbstractFactory
 	}
 
 	/**
+	 * Saves the member through the registration service, on a request made from these values, with
+	 * mail, the welcome message and trophies switched off for the save.
+	 */
+	protected function register(User $user, RegistrationService $registration, array $server): void
+	{
+		$app = \XF::app();
+		$options = $app->options();
+		$container = $app->container();
+		$real = [
+			'options' => ['registrationWelcome' => $options['registrationWelcome'], 'enableTrophies' => $options['enableTrophies']],
+			// what the container was given, not the mailer it made, so one made afresh later - with
+			// another transport, say - is made the same way
+			'mailer' => $container->getOriginal('mailer'),
+		];
+
+		// a copy of the mailer that sends nothing and queues nothing, since a queued mail would be
+		// sent by a job later with the real transport
+		$mailer = clone $container['mailer'];
+		$mailer->setDefaultTransport(new \Symfony\Component\Mailer\Transport\NullTransport());
+		(function () { $this->queue = false; })->call($mailer);
+
+		$options['registrationWelcome'] = ['emailEnabled' => false, 'messageEnabled' => false] + (array) $options['registrationWelcome'];
+		$options['enableTrophies'] = false;
+		$container['mailer'] = $mailer;
+
+		try
+		{
+			$address = Context::withRequest($server, function () use ($registration)
+			{
+				if (!$registration->validate($errors))
+				{
+					throw new \InvalidArgumentException('XenForo refused the registration: ' . implode(' ', array_map('strval', $errors)));
+				}
+
+				$registration->save();
+
+				// as XenForo read it, which a forum behind a proxy may take from a header
+				return \XF::app()->request()->getIp();
+			});
+		}
+		catch (\Throwable $e)
+		{
+			// saved, and then something another add-on does failed: left now, nothing would ever
+			// remove the member
+			if ($user->exists())
+			{
+				static::remove($user);
+			}
+
+			throw $e;
+		}
+		finally
+		{
+			$container['mailer'] = $real['mailer'];
+			foreach ($real['options'] AS $name => $value)
+			{
+				$options[$name] = $value;
+			}
+		}
+
+		// the address it registered from is the member's own from now on
+		IpHistory::startWith($this->context(), $user->user_id, $address);
+	}
+
+	/**
 	 * One of the things a member has besides their own rows. Every date is given: left to its
 	 * column default each would be the moment the first of its kind was made in this run.
 	 *
@@ -706,6 +840,10 @@ class UserFactory extends AbstractFactory
 		{
 			case 'no_password':
 				// set before the save, where the password otherwise is
+				break;
+
+			case 'registered':
+				// the save itself
 				break;
 
 			case 'permissions':
@@ -757,6 +895,11 @@ class UserFactory extends AbstractFactory
 				break;
 
 			case 'confirmation':
+				if ($em->find('XF:UserConfirmation', ['user_id' => $user->user_id, 'confirmation_type' => 'email']))
+				{
+					// a registration on a forum that confirms addresses has left one already
+					break;
+				}
 				$confirmation = $em->create('XF:UserConfirmation');
 				$confirmation->bulkSet(['user_id' => $user->user_id, 'confirmation_type' => 'email']);
 				$confirmation->regenerateKey();
@@ -868,7 +1011,11 @@ class UserFactory extends AbstractFactory
 			IpHistory::log($user->user_id, IpHistory::pick($addresses), 'user', $user->user_id, $action, $date);
 		};
 
-		IpHistory::log($user->user_id, $addresses[0], 'user', $user->user_id, 'register', $start);
+		if (!isset(self::$registrations[$user]))
+		{
+			// a registration logged its own
+			IpHistory::log($user->user_id, $addresses[0], 'user', $user->user_id, 'register', $start);
+		}
 
 		$logins = $logins ?? mt_rand(3, 12);
 		for ($i = 1; $i < $logins; $i++)
