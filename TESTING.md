@@ -485,31 +485,45 @@ asserts that creating a member leaves the table as it was.
   development off, switch seeding on, and run in order: `seeder:validate`, `seeder:run`, an
   uninstall (refused), `seeder:clean`, an uninstall (succeeds, and the record table is gone). Run
   `seeder:validate` once before installing Media Gallery and Resource Manager and once after, so
-  both a forum without them and one with them are covered. Last run on 2026-10-24 from the 1.0.0b9
+  both a forum without them and one with them are covered. Last run on 2026-10-24 from the 1.0.0b10
   zip, against XenForo, Media Gallery and Resource Manager 2.3.13 on PHP 8.3 and 2.3.0 on PHP 8.1:
   the round trip; `User` and `ModeratorLog` with what 1.0.0b4 added; `Thread` and `Default` with
-  `permission_groups`, giving as many permission combinations as groups and one group to each
-  forum; `Default` building a tree of categories, forums and sub-forums with threads in every
-  one, each child inside its parent; `UserUpgrade` with `purchasable`, the profile still switched
-  off; `Job`, its queued jobs neither run nor logging an error through a run of the queue, and none
-  due; `ProfilePost`, with comments and status updates, in the news feed and on the profile page
-  as a guest sees it, and nobody alerted; `votedByAll()` from another add-on's seeder, every
-  member voting once; and `Thread` given a category as its forum, refused with no member made -
-  no row, mail, alert or server error left, and the record table gone at the uninstall. Both runs
-  had both add-ons installed throughout; a forum without them was last covered on 2026-10-12
+  `permission_groups`, giving as many permission combinations as groups and one group to each forum;
+  `Default` building a tree of categories, forums and sub-forums with threads in every one, each
+  child inside its parent; `UserUpgrade` with `purchasable`, the profile still switched off; `Job`,
+  its queued jobs neither run nor logging an error through a run of the queue, and none due;
+  `ProfilePost`, with comments and status updates, in the news feed and on the profile page as a
+  guest sees it, and nobody alerted; `votedByAll()` from another add-on's seeder, every member
+  voting once; `User` with `registered=1`, and `registered()` and `withRequest()` from another
+  add-on's seeder (see below); and `Thread` given a category as its forum, refused with no member
+  made - no row, mail, alert or server error left, and the record table gone at the uninstall. Both
+  runs had both add-ons installed throughout; a forum without them was last covered on 2026-10-12
   from the 1.0.0b1 zip. Every seeder was last run there on 2026-10-11.
 - **The upgrade, before a release.** On the same kind of forum, install the previous build's zip,
   seed a batch, then upgrade to the new zip by path. Check the output says `Importing add-on data`
   and not `All data imported`, that the batch is still listed, that no file is on disk that the
   new zip does not hold, and that the uninstall is still refused. Last run on 2026-10-24 to
-  1.0.0b9: from 1.0.0b8 on XenForo 2.3.13 with PHP 8.3, and from the published 1.0.0b7 on 2.3.0
-  Patch 2 with PHP 8.1.
+  1.0.0b10: from 1.0.0b9 on XenForo 2.3.13 with PHP 8.3, and from the published 1.0.0b8 on 2.3.0
+  Patch 2 with PHP 8.1. Both earlier versions given `registered=1` make the member without it,
+  list the parameter as ignored and exit 1.
 - **A factory called from a script.** The suite injects the stream and fakes the error log, so
   only a real script shows the warning reaching both. Run a PHP file that starts XenForo and
   creates two payment profiles through `PaymentProfileFactory`: standard error should name the
   first, once, and the error log should hold one `Seeder: ` row. Last run on 2026-10-24, from the
-  1.0.0b9 zip, on disposable forums: on 2.3.13 both; on 2.3.0 Patch 2 standard error only, because
+  1.0.0b10 zip, on disposable forums: on 2.3.13 both; on 2.3.0 Patch 2 standard error only, because
   XenForo's own logger there throws on a script's empty request address and writes nothing.
+- **Registration through the service, with a real extension of it.** On the same kind of forum,
+  install an add-on that extends `User\RegistrationService::_save()` and writes a row from the
+  request - Approval Queue Plus records the user agent and the Cloudflare country - then run
+  `seeder:run User -p users=3 -p moderated=1 -p registered=1`, and a seeder in another namespace
+  that calls `registered()` with an address, an agent and `HTTP_CF_IPCOUNTRY`, and
+  `Context::withRequest()` both returning and throwing. Every member should have the add-on's row,
+  from the values given where they were given, and a `register` IP row at that address; nothing
+  mailed, alerted, queued for mail or awarded; the real request back afterwards; and cleaning
+  should leave none of the add-on's rows. Last run on 2026-10-24 from the 1.0.0b10 zip with
+  Approval Queue Plus 3.6.4, on both forums. The members' state follows the forum's effective
+  setup: valid on 2.3.0 Patch 2, where the sandbox's `config.docker.php` switches email
+  confirmation off, and awaiting confirmation on 2.3.13, where the same override did not take.
 - **An uninstall from the admin control panel has not been clicked in a browser.** The suite
   dispatches the control panel's uninstall action and checks the refusal and the state it leaves,
   so what is unseen is only how the error is displayed.
@@ -574,12 +588,11 @@ asserts that creating a member leaves the table as it was.
   member and as a guest, and through its purchase check; never on the page.
 - **`seeder:run UserUpgrade -p hooks=1` on a forum with an add-on that hooks upgrades.** Not run:
   on the development forum the one such add-on has no API key, and its jobs would only fail.
-- **`seeder:run User -p registered=1` on a forum with an add-on that extends registration**, in
-  a sandbox, since the extension is that add-on's and may send what it learns elsewhere. The suite
-  runs a stand-in for one; no real add-on's extension has run yet.
+- **`seeder:run User -p registered=1` with an add-on whose extension sends what it learns out of
+  the forum.** The one run so far was with an extension that only writes a row of its own.
 - **The declared floor, before a release that changes a factory.** A disposable forum at XenForo
   2.3.0 on PHP 8.1, with the 2.3.0 Media Gallery and Resource Manager: lint the zip's PHP there,
   then the same sequence as above. Last run on 2026-10-24 at 2.3.0 Patch 2 and PHP 8.1, from the
-  1.0.0b9 zip. Its first run found two defects that 2.3.12 and 2.3.13 do not show; the run from a
+  1.0.0b10 zip. Its first run found two defects that 2.3.12 and 2.3.13 do not show; the run from a
   zip built with both fixed was clean.
 - The commands have run on XenForo 2.3 only.
