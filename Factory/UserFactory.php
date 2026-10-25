@@ -74,6 +74,18 @@ class UserFactory extends AbstractFactory
 	}
 
 	/**
+	 * Valid: registered, confirmed and approved. That is the default already, except for a member
+	 * registered(), whom the forum's registration setup would otherwise leave awaiting email
+	 * confirmation or approval.
+	 *
+	 * @return static
+	 */
+	public function valid()
+	{
+		return $this->state(['user_state' => 'valid'])->extra('valid');
+	}
+
+	/**
 	 * Awaiting approval by a moderator.
 	 *
 	 * @return static
@@ -239,7 +251,8 @@ class UserFactory extends AbstractFactory
 	 * from a browser's user agent and an address set aside for documentation unless they are
 	 * given, and XenForo logs that address as the one the member registered from. A member left in
 	 * the default state ends in the state the forum's registration setup gives one - awaiting
-	 * email confirmation, awaiting approval, or valid; moderated() or unconfirmed() choose instead.
+	 * email confirmation, awaiting approval, or valid; valid(), moderated() or unconfirmed() choose
+	 * instead.
 	 * Where the forum asks for a date of birth or a location, the member is given one.
 	 *
 	 * **Nobody is mailed or alerted by XenForo**: mail is switched off for the save, and so are the
@@ -764,7 +777,11 @@ class UserFactory extends AbstractFactory
 		$options = $app->options();
 		$container = $app->container();
 		$real = [
-			'options' => ['registrationWelcome' => $options['registrationWelcome'], 'enableTrophies' => $options['enableTrophies']],
+			'options' => [
+				'registrationWelcome' => $options['registrationWelcome'],
+				'enableTrophies' => $options['enableTrophies'],
+				'registrationSetup' => $options['registrationSetup'],
+			],
 			// what the container was given, not the mailer it made, so one made afresh later - with
 			// another transport, say - is made the same way
 			'mailer' => $container->getOriginal('mailer'),
@@ -779,6 +796,14 @@ class UserFactory extends AbstractFactory
 		$options['registrationWelcome'] = ['emailEnabled' => false, 'messageEnabled' => false] + (array) $options['registrationWelcome'];
 		$options['enableTrophies'] = false;
 		$container['mailer'] = $mailer;
+
+		// valid() asked for: the service gives a member left valid whatever the setup says, and
+		// leaves any other state it is given alone. Replaced whole, since XF\Options loses a nested
+		// write
+		if (in_array('valid', array_column(self::$extras[$user] ?? [], 0), true))
+		{
+			$options['registrationSetup'] = ['emailConfirmation' => false, 'moderation' => false] + (array) $options['registrationSetup'];
+		}
 
 		try
 		{
@@ -844,6 +869,10 @@ class UserFactory extends AbstractFactory
 
 			case 'registered':
 				// the save itself
+				break;
+
+			case 'valid':
+				// the state, and for a registration the setup it is saved under
 				break;
 
 			case 'permissions':

@@ -137,6 +137,19 @@ class RegistrationTest extends TestCase
 		$this->setOption('registrationSetup', $setup);
 		$this->assertSame('moderated', UserFactory::new()->registered()->moderated()->create()->user_state);
 
+		// valid asked for is valid whatever the setup, the last state asked for wins, and the
+		// setup is put back
+		$strict = ['emailConfirmation' => true, 'moderation' => true] + $setup;
+		$this->setOption('registrationSetup', $strict);
+		$valid = UserFactory::new()->registered()->valid()->create();
+		$this->assertSame('valid', $valid->user_state);
+		$this->assertDatabaseMissing('xf_user_confirmation', ['user_id' => $valid->user_id]);
+		$this->assertDatabaseMissing('xf_approval_queue', ['content_type' => 'user', 'content_id' => $valid->user_id]);
+		$this->assertSame('valid', UserFactory::new()->registered()->moderated()->valid()->create()->user_state);
+		$this->assertSame('moderated', UserFactory::new()->registered()->valid()->moderated()->create()->user_state);
+		$this->assertSame($strict, $this->app()->options()->registrationSetup);
+		$this->assertNoMailSent();
+
 		// a pending confirmation asked for as well is the one the registration left
 		$this->setOption('registrationSetup', ['emailConfirmation' => true] + $setup);
 		$pending = UserFactory::new()->registered()->withConfirmationPending()->create();

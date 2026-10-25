@@ -149,6 +149,7 @@ UserFactory::new()
 | a column on the member | `state(['user_group_id' => 5])`, `['is_moderator' => true]`, `['register_date' => ...]` |
 | a preference, profile or privacy setting | `state(['Option.receive_admin_email' => true])`, `'Profile.location'`, `'Privacy.allow_view_profile'` |
 | awaiting approval, or unconfirmed | `->moderated()`, `->unconfirmed()`. A moderated member is in the approval queue, at the date they registered |
+| valid, whatever the forum's registration setup | `->valid()` *(since 1.0.0b11)*: the default already, and needed only with `registered()` |
 | banned | `->banned()` permanently, `->banned($until)` until a timestamp in the future, `->banned($until, $moderator)` to say who by |
 | mail to them bounced | `->bouncing()` |
 | no email address at all | `->withoutEmail()` |
@@ -248,7 +249,8 @@ save, and its spam check is not run - the registration form calls that, not the 
   address as the one the member registered from, and `withIpLog()` builds on it.
 - **The forum's registration setup decides the state.** A member left at the default ends awaiting
   email confirmation, awaiting approval or valid, as one who signed up there would - and XenForo
-  ships with email confirmation on. `moderated()` or `unconfirmed()` choose instead. Where the
+  ships with email confirmation on. `valid()` *(since 1.0.0b11)*, `moderated()` or `unconfirmed()`
+  choose instead; `state(['user_state' => 'valid'])` does not, since it is the default. Where the
   forum asks for a date of birth or a location, the member is given one.
 
 **A member's history is written as XenForo writes it** *(since 1.0.0b4)*. `withChanges()` saves

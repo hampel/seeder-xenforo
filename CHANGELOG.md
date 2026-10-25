@@ -51,6 +51,7 @@ First release.
 - every member given to a poll can be made to vote, for a check that needs to know who voted
 - members can register through XenForo's registration service, as an opt-in, so that another
   add-on's extension of it runs for them; XenForo mails and alerts nobody
+- a registered member can be made valid with `valid()` whatever the forum's registration setup
 - `Context::withRequest()` runs a factory's code on a request made from given server values, for
   code that reads the visitor's address, user agent or headers
 - moderator log entries about members' threads, replies and accounts, in XenForo's own words,
