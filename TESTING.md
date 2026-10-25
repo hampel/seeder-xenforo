@@ -73,6 +73,9 @@ needs a person.
 - **Administrators** — the member, then the `Admin` entity, which sets the member's flag and
   writes the permission entries. Removed by XenForo's member clean-up. A seeded administrator can
   sign in to the admin control panel.
+- **Moderators** — the member, then the `Moderator` entity, which sets the member's flag, and for
+  a moderator of one node a `ModeratorContent` row. No moderator permissions are written. Removed
+  by XenForo's member clean-up.
 - **User groups and permissions** — the `UserGroup` entity, then XenForo's permission service,
   which writes the group's permission entries, global and on a node. A member given permissions joins the group before
   being saved, so XenForo builds their permission combination with it. Deleting a group is
@@ -105,6 +108,10 @@ needs a person.
   writes that table with a query. An entry for the control panel's front page has an empty path,
   which the entity refuses, so it is saved with one and then updated. XenForo prunes the table by
   age.
+- **The spam trigger and email bounce logs** — entries written through the `SpamTriggerLog` and
+  `EmailBounceLog` entities as data; no spam check is run and no mailbox is read. An entry for a
+  message refused outright has a null content id, which the entity refuses, so it is saved with 0
+  and then updated. XenForo prunes both tables at 30 days.
 - **API keys** — through the `ApiKey` entity, not XenForo's key manager service, which emails
   every super administrator. A run prints key values: they are live credentials on that forum.
 - **Warnings** — definitions through their entity and three phrases; warnings through the
@@ -562,6 +569,9 @@ asserts that creating a member leaves the table as it was.
 - **Permissions from another add-on, seen on a page.** On the development forum members were
   given `Hampel/HideAdverts`' permission and that add-on's own check read it, with every add-on
   loaded; nobody has signed in as one and looked at a page.
+- **A seeded moderator in the admin control panel's moderator list**, and seeded spam trigger and
+  email bounce logs on XenForo's log pages. Each was read back through XenForo's entities, and the
+  spam trigger log's details rendered in XenForo's words; no page has been fetched or looked at.
 - **A seeded moderator log on XenForo's moderator log page.** Each entry was read back through
   XenForo's entity and its wording rendered. On 2026-10-15, in a sandbox on XenForo 2.3.13 from
   the 1.0.0b4 zip, the log's list (paged) and two single entries were fetched over HTTP as a super

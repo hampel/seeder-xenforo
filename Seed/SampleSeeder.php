@@ -10,7 +10,7 @@
  * and members whose mail bounced, an administrator and a moderator with no permissions, profile posts, status
  * updates and comments on them,
  * custom user fields with members' values, user upgrades held and run out, warning definitions,
- * warnings, API keys and widgets - and, where the forum has Resource Manager or Media Gallery, resources -
+ * warnings, spam trigger and email bounce log entries, API keys and widgets - and, where the forum has Resource Manager or Media Gallery, resources -
  * rated, reviewed, one of them featured and each with a discussion thread - and media items
  * with comments.
  *
@@ -52,6 +52,8 @@ class SampleSeeder extends AbstractSeeder
 		}
 
 		$this->call(WarningSeeder::class, ['warnings' => 5, 'definitions' => 2, 'members' => 2]);
+		$this->call(SpamTriggerSeeder::class, ['registrations' => 2, 'messages' => 3, 'members' => 1]);
+		$this->call(EmailBounceSeeder::class, ['hard' => 1, 'soft' => 1, 'other' => 3]);
 		$this->call(ApiKeySeeder::class, ['user_keys' => 1, 'guest_keys' => 1, 'super_keys' => 0, 'inactive' => 1]);
 		$this->call(WidgetSeeder::class, ['widgets' => 2]);
 	}

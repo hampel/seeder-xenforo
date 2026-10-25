@@ -9,12 +9,12 @@ By [Simon Hampel](https://xenforo.com/community/members/sim.4264/).
 [support thread](https://xenforo.com/community/threads/seeder-test-data-generator.240676/)
 
 **This is a beta.** It creates members in the states a forum holds them in - valid, awaiting
-approval, unconfirmed, rejected, banned, bouncing, administrators, holding permissions, with a
-history of changes and of names - forums, threads with replies, tags,
+approval, unconfirmed, rejected, banned, bouncing, administrators, moderators, holding permissions,
+with a history of changes and of names - forums, threads with replies, tags,
 reactions, thread prefixes, image attachments, featured and sticky threads, polls with votes, content awaiting
 approval or soft-deleted, forums of each type, search forums, conversations, profile posts and status updates with comments, custom user fields with members' values, user upgrades held and run out, warning
 definitions, warnings, API keys, widgets, who is online, server error log entries, admin log
-entries, moderator log entries and IP logs - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
+entries, moderator log entries, spam trigger and email bounce log entries and IP logs - and, where the forum has them, XenForo Resource Manager resources with ratings, reviews and discussion threads and
 XenForo Media Gallery media items with comments - and removes them again.
 
 Two things to know while it is one:
@@ -111,7 +111,9 @@ ignored and exits 1.
 | `ModeratorLog` *(since 1.0.0b4)* | a moderator log with history: a few moderators acting on members' threads, replies and accounts, and the members and threads they act on | `entries` (60, about), `moderators` (2), `members` (4), `threads` (6), `replies` (3, the most per thread) |
 | `AdminLog` *(since 1.0.0b3)* | an admin log with history: a few administrators, the ordinary actions repeated and unusual ones once | `entries` (200), `admins` (3; administrators created for the entries to be by) |
 | `Job` *(since 1.0.0b8)* | failed jobs over the last few weeks, and jobs waiting in the queue that will never run | `failed` (60), `days` (28; how far back the failures go, at least 2), `secrets` (10; the percentage of one-off failures whose message quotes a made-up credential), `queued` (6), `manual` (3; jobs waiting to be run by hand), `retrying` (3; jobs that failed and wait to try again) |
-| `Sample` | a little of everything above, bar who is online, the error log, the admin log, the job queue, HTML widgets and members holding permissions, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
+| `SpamTrigger` *(since 1.0.0b11)* | a spam trigger log from the last month: registrations and messages XenForo's spam check held or refused | `registrations` (6; by turns awaiting approval and rejected), `messages` (6; by turns a thread and a reply awaiting approval and a reply refused outright), `members` (3; who post them) |
+| `EmailBounce` *(since 1.0.0b11)* | an email bounce log from the last month: hard bounces, soft bounces, and messages that are not bounces | `hard` (3; members whose mail bounced hard, one bounce each), `soft` (3; members whose mail bounced soft, one to three times each), `other` (3; by turns an automatic reply, a delay and a bounce for an address no member has) |
+| `Sample` | a little of everything above, bar who is online, the error log, the admin log, the moderator log, the job queue, HTML widgets and members holding permissions, with resources and media only where the forum has those add-ons; what `seeder:validate` seeds and removes | |
 
 **The `Thread` seeder varies each first post**, cycling through plain prose, a long post, a quote, a
 list, an image, links, an attachment, and everything at once with a prefix — so whatever renders a
@@ -213,7 +215,8 @@ unless one is given. Where the forum has a banned user group set, the member is 
 - **A moderator or administrator cannot be banned**, and one cannot be `bouncing()`: XenForo
   refuses the first and never does the second, so the factory refuses both.
 - **`bouncing()` is the member's state alone**, as XenForo's own bounce handling sets it. No
-  bounce is logged.
+  bounce is logged; `EmailBounceLogFactory` *(since 1.0.0b11)* writes one - see *The email bounce
+  log*.
 
 **The ways in are rows, not working credentials.** A connected account has a made-up id at the
 provider and no tokens; a passkey's key is not a key and can sign nothing; nobody holds the
@@ -821,6 +824,59 @@ registered before the quiet period.
 
 **XenForo prunes this log by age only when told to**, with its `moderatorLogLength` setting; 0,
 the default, keeps everything.
+
+### The spam trigger log
+
+*Since 1.0.0b11.*
+
+```bash
+php cmd.php seeder:run SpamTrigger -p registrations=20 -p messages=12
+```
+
+**Entries are written as data. No spam check is run** and nothing is sent to a spam service. Each
+entry is what XenForo records when its spam check holds a registration or a message for approval
+or refuses it: the content, its author, the address, what matched in XenForo's own words, and the
+request it arrived on, with the password and the token masked.
+
+| factory | builds | states |
+|---|---|---|
+| `SpamTriggerLogFactory` | an entry about a new member's registration, held for approval | `for($member)`, `for($thread)`, `for($post)`, a profile post, a comment on one or a conversation; `denied('post', $member)` for a message refused outright |
+
+**The content is in the state the entry says the check left it in.** The default member is
+awaiting approval; given one whose registration was rejected, the entry says the registration was
+refused. The seeder's threads and replies await approval. A message refused outright was never
+saved, so its entry has no content, as XenForo writes one. Every entry is dated with its content
+and by its author. XenForo keeps one entry for each piece of content, so a second about the same
+is refused.
+
+**XenForo prunes this log at 30 days**, so every entry the seeder and the default member make is
+dated within the last month. An entry `for()` older content goes at XenForo's next daily clean-up,
+whether or not the batch is cleaned.
+
+### The email bounce log
+
+*Since 1.0.0b11.*
+
+```bash
+php cmd.php seeder:run EmailBounce -p hard=10 -p soft=10 -p other=6
+```
+
+**Entries are written as data. Nothing is read from a bounce mailbox and nothing is sent.** Each
+entry is what XenForo records for a message its bounce handler reads: the member it matched, the
+recipient, the delivery status and the remote server's words, the action XenForo took, and the
+delivery report itself as the raw message. Every address is the member's own, from a reserved
+domain.
+
+| factory | builds | states |
+|---|---|---|
+| `EmailBounceLogFactory` | a hard bounce of mail to a new member whose mail bounced | `for($member)`, `soft()`, `messageType('autoreply')` or `'delay'`, `'challenge'`, `'unknown'`, `unmatched()` |
+
+**The log alone is written.** A hard bounce does not change the member's state - the default
+member is already `bouncing()` - and a soft one adds nothing to the soft bounce history XenForo
+counts towards its threshold. Nothing that acts on a bounce as XenForo reads one sees these.
+
+**XenForo prunes this log at 30 days**, so every entry is dated within the last month, and goes at
+XenForo's next daily clean-up once that is past, whether or not the batch is cleaned.
 
 ### The job queue
 

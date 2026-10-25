@@ -54,6 +54,8 @@ First release.
 - a registered member can be made valid with `valid()` whatever the forum's registration setup
 - `moderator()` makes a moderator with the moderator record behind the flag, of every forum or of
   one, and every moderator Seeder makes for itself is one
+- spam trigger log entries about registrations and messages held or refused, and email bounce
+  log entries - hard and soft bounces, automatic replies and delays - each with its delivery report
 - `Context::withRequest()` runs a factory's code on a request made from given server values, for
   code that reads the visitor's address, user agent or headers
 - moderator log entries about members' threads, replies and accounts, in XenForo's own words,
