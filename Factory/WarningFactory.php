@@ -35,7 +35,7 @@ class WarningFactory extends AbstractFactory
 
 				return $attributes['content_type'] === 'user' ? $content->user_id : (int) $content->user_id;
 			},
-			'warning_user_id' => UserFactory::new()->state(['is_moderator' => true, 'is_staff' => true]),
+			'warning_user_id' => UserFactory::new()->moderator(),
 			'warning_definition_id' => function ()
 			{
 				return $this->pickDefinition();
@@ -135,7 +135,8 @@ class WarningFactory extends AbstractFactory
 			{
 				$given = $attributes['warning_date'];
 
-				return $given + min(86400, max(1, intdiv(time() - $given, 2)));
+				// never after now, or one given in the last second would not have run out yet
+				return min(time(), $given + min(86400, max(1, intdiv(time() - $given, 2))));
 			}];
 		});
 	}

@@ -40,9 +40,7 @@ class ModeratorLogFactory extends AbstractBulkFactory
 	 */
 	public static function moderator(): UserFactory
 	{
-		return UserFactory::new()->state([
-			'is_moderator' => true,
-			'is_staff' => true,
+		return UserFactory::new()->moderator()->state([
 			'register_date' => function ()
 			{
 				return min(\Hampel\Seeder\Context::current()->timeline->at(), self::latest() - 86400);

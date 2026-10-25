@@ -34,7 +34,7 @@ class WarningSeeder extends AbstractSeeder
 		}
 
 		$members = UserFactory::new()->count(max(1, $this->count('members', 5)))->create();
-		$moderator = UserFactory::new()->create(['is_moderator' => true, 'is_staff' => true]);
+		$moderator = UserFactory::new()->moderator()->create();
 		$thread = ThreadFactory::new()->recycle($members)->create();
 
 		$factory = WarningFactory::new()->by($moderator)->recycle($definitions);

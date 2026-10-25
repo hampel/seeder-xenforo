@@ -23,6 +23,8 @@ use Hampel\Seeder\Factory\UserGroupFactory;
  *                can leave (0)
  *     admins     how many more who are administrators, with an administrator record and no
  *                administrator permissions (0). Each can sign in to the admin control panel
+ *     moderators how many more who are super moderators, with a moderator record and no moderator
+ *                permissions (0)
  *     permitted  how many more who hold the permissions in `permissions`, through a user group
  *                made to grant them (0)
  *     permissions  what those members hold, as `general.bypassFloodCheck` or, where the value is
@@ -106,6 +108,12 @@ class UserSeeder extends AbstractSeeder
 			$this->member()->administrator()->count($admins)->create();
 		}
 
+		$moderators = $this->count('moderators', 0);
+		if ($moderators)
+		{
+			$this->member()->moderator()->count($moderators)->create();
+		}
+
 		$permitted = $this->count('permitted', 0);
 		if ($permitted)
 		{
@@ -158,7 +166,7 @@ class UserSeeder extends AbstractSeeder
 	 */
 	private function moderator(): \XF\Entity\User
 	{
-		return $this->moderator = $this->moderator ?? $this->member()->state(['is_moderator' => true, 'is_staff' => true])->create();
+		return $this->moderator = $this->moderator ?? $this->member()->moderator()->create();
 	}
 
 	public function notices(): array

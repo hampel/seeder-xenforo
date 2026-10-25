@@ -145,7 +145,7 @@ class UserFactory extends AbstractFactory
 		{
 			static $made = null;
 
-			return $made = $made ?? static::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
+			return $made = $made ?? static::new()->moderator()->create();
 		};
 
 		return $this->extra('banned', [(int) $until, $by]);
@@ -452,6 +452,21 @@ class UserFactory extends AbstractFactory
 	public function administrator(string ...$permissions)
 	{
 		return $this->extra('admin', $permissions);
+	}
+
+	/**
+	 * A moderator: the member's flag and the moderator record behind it, so the forum lists them
+	 * among its moderators. With no node a super moderator, of every forum; given one, a moderator
+	 * of that node alone. Either way with no moderator permissions, as an administrator() has none
+	 * - the record is the point, not what it can do.
+	 *
+	 * @param Entity|null $node a node, or anything with a `node_id` such as a forum
+	 *
+	 * @return static
+	 */
+	public function moderator(?Entity $node = null)
+	{
+		return $this->state(['is_moderator' => true, 'is_staff' => true])->extra('moderator', $node ? (int) $node->node_id : null);
 	}
 
 	/**
@@ -991,6 +1006,20 @@ class UserFactory extends AbstractFactory
 				$admin->save();
 				break;
 
+			case 'moderator':
+				$moderator = $em->create('XF:Moderator');
+				$moderator->bulkSet(['user_id' => $user->user_id, 'is_super_moderator' => $argument === null]);
+				// the record saves the member, to set their moderator flag
+				static::silence($user);
+				$moderator->save();
+				if ($argument !== null)
+				{
+					$content = $em->create('XF:ModeratorContent');
+					$content->bulkSet(['content_type' => 'node', 'content_id' => $argument, 'user_id' => $user->user_id]);
+					$content->save();
+				}
+				break;
+
 			case 'banned':
 				[$until, $by] = $argument;
 				$by = $by instanceof \Closure ? $by() : $by;
@@ -1083,7 +1112,7 @@ class UserFactory extends AbstractFactory
 		{
 			$made[$kind] = $kind === 'admin'
 				? static::new()->administrator()->create()
-				: static::new()->state(['is_moderator' => true, 'is_staff' => true])->create();
+				: static::new()->moderator()->create();
 			self::$staff[$context] = $made;
 		}
 
