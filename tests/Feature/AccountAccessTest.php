@@ -255,6 +255,25 @@ class AccountAccessTest extends TestCase
 		$this->assertSame([['connected'], ['two_step'], ['passkey'], ['remember'], ['confirmation']], array_slice($has, 0, 5));
 	}
 
+	public function test_two_step_verification_and_a_passkey_together_share_one_set_of_backup_codes()
+	{
+		$this->recordInto('test-access-both');
+		// XenForo logs a failure here and rolls every transaction back, which the fake does not
+		$this->fakesErrors();
+		$db = $this->app()->db();
+
+		$members = UserFactory::new()->count(2)->withTwoStep()->withPasskey()->withRememberKey()->create()->toArray();
+		$members[] = UserFactory::new()->withPasskey()->withTwoStep()->withRememberKey()->create();
+		foreach ($members AS $member)
+		{
+			$this->assertSame(['backup', 'passkey', 'totp'], $db->fetchAllColumn('SELECT provider_id FROM xf_user_tfa WHERE user_id = ? ORDER BY provider_id', $member->user_id));
+			$this->assertDatabaseHas('xf_passkey', ['user_id' => $member->user_id]);
+			$this->assertDatabaseHas('xf_user_remember', ['user_id' => $member->user_id]);
+		}
+
+		$this->assertSame([], $this->getLoggedMessages(), 'nothing logged');
+	}
+
 	public function test_a_member_active_without_content_has_logged_in_been_alerted_follows_and_is_followed()
 	{
 		$this->recordInto('test-access-active');

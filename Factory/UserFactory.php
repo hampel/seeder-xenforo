@@ -909,6 +909,7 @@ class UserFactory extends AbstractFactory
 				break;
 
 			case 'two_step':
+				$this->forgetBackupCodes();
 				\XF::repository(TfaRepository::class)->enableUserTfaProvider($user, $em->find('XF:TfaProvider', 'totp'), [
 					'secret' => substr(\Base32\Base32::encode(random_bytes(16)), 0, 16),
 				]);
@@ -925,9 +926,11 @@ class UserFactory extends AbstractFactory
 					'aaguid' => str_repeat('0', 32),
 					'create_date' => $when, 'create_ip_address' => $ip,
 				]);
+				$this->forgetBackupCodes();
 				$passkey->save();
-				// XenForo lists the passkey among the member's two-step methods at the end of the request
-				\XF::triggerRunOnce();
+				// XenForo lists the passkey among the member's two-step methods at the end of the
+				// request, and would log a failure there and carry on
+				\XF::triggerRunOnce(true);
 				$db->update('xf_user_tfa', ['last_used_date' => $when], 'user_id = ?', $user->user_id);
 				break;
 
@@ -1049,6 +1052,20 @@ class UserFactory extends AbstractFactory
 
 			default:
 				throw new \LogicException("Unknown '{$kind}'");
+		}
+	}
+
+	/**
+	 * XenForo adds backup codes beside a member's first two-step method, unless the backup provider's
+	 * cached list of members already has them. In a request a member sets up one method; here a
+	 * second would find the list as it was before the first, and add a second set.
+	 */
+	protected function forgetBackupCodes(): void
+	{
+		$backup = \XF::em()->find('XF:TfaProvider', 'backup');
+		if ($backup)
+		{
+			$backup->clearCache('UserEntries');
 		}
 	}
 
