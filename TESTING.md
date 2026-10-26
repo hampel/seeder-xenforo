@@ -492,7 +492,7 @@ asserts that creating a member leaves the table as it was.
   development off, switch seeding on, and run in order: `seeder:validate`, `seeder:run`, an
   uninstall (refused), `seeder:clean`, an uninstall (succeeds, and the record table is gone). Run
   `seeder:validate` once before installing Media Gallery and Resource Manager and once after, so
-  both a forum without them and one with them are covered. Last run on 2026-10-24 from the 1.0.0b10
+  both a forum without them and one with them are covered. Last run on 2026-10-26 from the 1.0.0b11
   zip, against XenForo, Media Gallery and Resource Manager 2.3.13 on PHP 8.3 and 2.3.0 on PHP 8.1:
   the round trip; `User` and `ModeratorLog` with what 1.0.0b4 added; `Thread` and `Default` with
   `permission_groups`, giving as many permission combinations as groups and one group to each forum;
@@ -502,17 +502,22 @@ asserts that creating a member leaves the table as it was.
   `ProfilePost`, with comments and status updates, in the news feed and on the profile page as a
   guest sees it, and nobody alerted; `votedByAll()` from another add-on's seeder, every member
   voting once; `User` with `registered=1`, and `registered()` and `withRequest()` from another
-  add-on's seeder (see below); and `Thread` given a category as its forum, refused with no member
-  made - no row, mail, alert or server error left, and the record table gone at the uninstall. Both
+  add-on's seeder (see below); `User` with `moderators`, a super moderator record for each, and
+  `moderator($forum)` from another add-on's seeder, a record for that forum alone; `SpamTrigger` and
+  `EmailBounce`, every entry inside XenForo's 30 days, refused replies with no content, the
+  registrations' members held or rejected and the hard-bounced members bouncing; `withTwoStep()`
+  and `withPasskey()` on one member in either order, one set of backup codes each; and `Thread`
+  given a category as its forum, refused with no member made - no row, mail, alert or server error
+  left, and the record table gone at the uninstall. Both
   runs had both add-ons installed throughout; a forum without them was last covered on 2026-10-12
   from the 1.0.0b1 zip. Every seeder was last run there on 2026-10-11.
 - **The upgrade, before a release.** On the same kind of forum, install the previous build's zip,
   seed a batch, then upgrade to the new zip by path. Check the output says `Importing add-on data`
   and not `All data imported`, that the batch is still listed, that no file is on disk that the
-  new zip does not hold, and that the uninstall is still refused. Last run on 2026-10-24 to
-  1.0.0b10: from 1.0.0b9 on XenForo 2.3.13 with PHP 8.3, and from the published 1.0.0b8 on 2.3.0
-  Patch 2 with PHP 8.1. Both earlier versions given `registered=1` make the member without it,
-  list the parameter as ignored and exit 1.
+  new zip does not hold, and that the uninstall is still refused. Last run on 2026-10-26 to
+  1.0.0b11: from the published 1.0.0b10 on XenForo 2.3.13 with PHP 8.3, and from the published
+  1.0.0b9 on 2.3.0 Patch 2 with PHP 8.1. Both earlier versions refuse `SpamTrigger` and
+  `EmailBounce` as unknown, and given `moderators` list it as ignored and exit 1.
 - **A factory called from a script.** The suite injects the stream and fakes the error log, so
   only a real script shows the warning reaching both. Run a PHP file that starts XenForo and
   creates two payment profiles through `PaymentProfileFactory`: standard error should name the
@@ -527,10 +532,13 @@ asserts that creating a member leaves the table as it was.
   `Context::withRequest()` both returning and throwing. Every member should have the add-on's row,
   from the values given where they were given, and a `register` IP row at that address; nothing
   mailed, alerted, queued for mail or awarded; the real request back afterwards; and cleaning
-  should leave none of the add-on's rows. Last run on 2026-10-24 from the 1.0.0b10 zip with
-  Approval Queue Plus 3.6.4, on both forums. The members' state follows the forum's effective
+  should leave none of the add-on's rows. Last run in full on 2026-10-24 from the 1.0.0b10 zip
+  with Approval Queue Plus 3.6.4, on both forums. The members' state follows the forum's effective
   setup: valid on 2.3.0 Patch 2, where the sandbox's `config.docker.php` switches email
   confirmation off, and awaiting confirmation on 2.3.13, where the same override did not take.
+  On 2026-10-26, from the 1.0.0b11 zip with the same add-on, `valid()` with `registered()` from
+  another add-on's seeder gave a valid member with the add-on's row on both, the 2.3.13 forum
+  asking for email confirmation.
 - **An uninstall from the admin control panel has not been clicked in a browser.** The suite
   dispatches the control panel's uninstall action and checks the refusal and the state it leaves,
   so what is unseen is only how the error is displayed.
